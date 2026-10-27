@@ -40,10 +40,20 @@
 <body>
 <div id="shared-navbar"></div>
 
-<section class="page-hero" style="background-image:url('assets/venue/roofdeck-bar-3.jpg');">
+<section class="page-hero hero-slider" aria-roledescription="carousel" aria-label="Restaurant photos">
+  <div class="hero-track" tabindex="0" aria-live="off">
+    <div class="hero-slide" role="group" aria-roledescription="slide" aria-label="1 of 2: the roof deck bar" style="background-image:url('assets/venue/roofdeck-bar-3.jpg');"></div>
+    <div class="hero-slide" role="group" aria-roledescription="slide" aria-label="2 of 2: the main restaurant dining room and bar" style="background-image:url('assets/venue/mainRestaurant.jpg');background-position:center 58%;"></div>
+  </div>
   <div class="container page-hero-content">
     <div class="crumb"><a href="index.html">Home</a> / Restaurant</div>
     <h1>Restaurant</h1>
+  </div>
+  <button class="hero-arrow hero-prev" type="button" aria-label="Previous photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg></button>
+  <button class="hero-arrow hero-next" type="button" aria-label="Next photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></button>
+  <div class="hero-dots" role="group" aria-label="Choose a photo">
+    <button class="hero-dot" type="button" aria-label="Show photo 1: roof deck bar"></button>
+    <button class="hero-dot" type="button" aria-label="Show photo 2: main restaurant"></button>
   </div>
 </section>
 
@@ -318,6 +328,7 @@
 <script src="assets/js/env.js" onerror="void 0"></script>
 <script src="components/navbar.js"></script>
 <script src="assets/js/main.js"></script>
+<script src="assets/js/hero-slider.js" defer></script>
 <script type="module" src="assets/js/live-prices.js"></script>
 <script type="module" src="assets/js/restaurant-live.js"></script>
 </body>

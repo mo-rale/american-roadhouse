@@ -859,3 +859,36 @@ footer a:hover{ color: var(--brass); }
   .dining-tabs .tab-btn:last-child{ margin-right:0; }
   .dining-cat-head h3{ font-size:23px; }
 }
+
+/* ---- Swipeable photo hero (Restaurant page) ---- */
+.hero-slider{ overflow:hidden; background:#14110E; }
+.hero-track{
+  position:absolute; inset:0; display:flex; overflow-x:auto; overflow-y:hidden;
+  scroll-snap-type:x mandatory; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+  scrollbar-width:none; touch-action:pan-x pan-y;
+}
+.hero-track::-webkit-scrollbar{ display:none; }
+.hero-track:focus-visible{ outline:2px solid var(--brass); outline-offset:-4px; }
+.hero-slide{ flex:0 0 100%; scroll-snap-align:start; scroll-snap-stop:always; background-size:cover; background-position:center 48%; }
+.hero-slider::after{ pointer-events:none; z-index:1; }
+.hero-slider .page-hero-content{ z-index:2; pointer-events:none; }
+.hero-slider .page-hero-content a{ pointer-events:auto; }
+.hero-arrow{
+  position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  background:rgba(20,17,14,.55); color:#fff; border:1px solid rgba(255,255,255,.35);
+  backdrop-filter:blur(4px); transition:background .2s ease, opacity .2s ease;
+}
+.hero-arrow:hover:not(:disabled){ background:rgba(20,17,14,.8); border-color:var(--brass); }
+.hero-arrow:focus-visible, .hero-dot:focus-visible{ outline:2px solid var(--brass); outline-offset:3px; }
+.hero-arrow:disabled{ opacity:.3; cursor:default; }
+.hero-prev{ left:20px; }
+.hero-next{ right:20px; }
+.hero-dots{ position:absolute; z-index:3; left:50%; transform:translateX(-50%); bottom:22px; display:flex; gap:10px; }
+.hero-dot{ width:10px; height:10px; padding:0; border-radius:50%; background:rgba(255,255,255,.45); border:0; transition:width .25s ease, background .25s ease; }
+.hero-dot[aria-current="true"]{ width:28px; border-radius:6px; background:var(--brass); }
+@media (max-width:640px){
+  .hero-arrow{ width:38px; height:38px; }
+  .hero-prev{ left:10px; }
+  .hero-next{ right:10px; }
+}
