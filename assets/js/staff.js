@@ -55,15 +55,28 @@ const isAdmin = () => S.profile?.role === 'admin';
 const onOff = (v, a = 'Yes', b = 'No') => `<span class="badge ${v ? '' : 'bad'}">${v ? a : b}</span>`;
 
 /* ---------- resource definitions (drive the generic CRUD tables) ---------- */
+const VENUE_LABEL = { main: 'Main', roofdeck: 'Roof Deck' };
+const LOW_STOCK = 5;   // "Low" badge and the low-stock filter use this
+const isLowStock = (r) => r.stock != null && r.stock <= LOW_STOCK;
+const stockCell = (r) => {
+  if (r.stock == null) return '<span class="badge" data-stockcell>Not tracked</span>';
+  const tag = r.stock === 0 ? ' <span class="badge bad">Out</span>' : r.stock <= LOW_STOCK ? ' <span class="badge bad">Low</span>' : '';
+  return `<span class="num" data-stockcell>${r.stock}</span>${tag}`;
+};
+const slugify = (name) => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'section';
+
 const RES = {
   menu: {
-    label: 'Menu', noun: 'menu item', table: 'menu_items', select: '*, categories(name)', admin: false,
+    label: 'Menu', noun: 'menu item', table: 'menu_items', select: '*, categories(name, venue)', admin: false,
     order: ['sort_order', 'name'],
+    note: 'One menu for the whole restaurant: everything customers see on the Restaurant page and the ordering page. An item shows under Main or Roof Deck according to its section.',
     columns: [
       ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
       ['Name', (r) => esc(r.name)],
-      ['Category', (r) => esc(r.categories?.name || '—')],
-      ['Price', (r) => `<span class="price" data-pricecell>${peso(r.price)}</span>`],
+      ['Venue', (r) => esc(VENUE_LABEL[r.categories?.venue] || '—')],
+      ['Section', (r) => esc(r.categories?.name || '—')],
+      ['Price', (r) => (r.price != null ? `<span class="price" data-pricecell>${peso(r.price)}</span>` : '<span class="badge">Ask for price</span>')],
+      ['Stock', stockCell],
     ],
     toggles: [
       { key: 'is_visible', label: 'Visible' },
@@ -71,8 +84,9 @@ const RES = {
     ],
     fields: [
       { key: 'name', label: 'Name', type: 'text', required: true, max: 120 },
-      { key: 'category_id', label: 'Category', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, c.name]) },
-      { key: 'price', label: 'Price (PHP)', type: 'price', required: true },
+      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]) },
+      { key: 'price', label: 'Price (PHP, optional)', type: 'priceopt', hint: 'Leave empty to show "Ask for today\'s price". An item needs a price before it can be ordered online.' },
+      { key: 'stock', label: 'Stock (portions)', type: 'stockopt', hint: 'Leave empty if you do not track stock. Each order subtracts from it; at 0 the item shows as sold out.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
       { key: 'image_url', label: 'Photo', type: 'image', span2: true },
       { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
@@ -80,37 +94,25 @@ const RES = {
       { key: 'is_available', label: 'Available to order', type: 'checkbox', def: true },
     ],
   },
-  restaurant: {
-    label: 'Restaurant page', noun: 'dish', table: 'restaurant_dishes', select: '*, restaurant_sections(name)', admin: false,
-    order: ['sort_order', 'name'],
-    note: 'These dishes appear on the Restaurant page, under the Main tab, grouped by section. The Roof Deck tab shows the Roofdeck Grill items from the Menu tab.',
-    columns: [
-      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
-      ['Name', (r) => esc(r.name)],
-      ['Section', (r) => esc(r.restaurant_sections?.name || '—')],
-      ['Price', (r) => (r.price != null ? `<span class="price" data-pricecell>${peso(r.price)}</span>` : '<span class="badge">Ask for price</span>')],
-    ],
-    toggles: [{ key: 'is_visible', label: 'Visible' }],
-    fields: [
-      { key: 'name', label: 'Name', type: 'text', required: true, max: 120 },
-      { key: 'section_id', label: 'Section', type: 'select', required: true, options: () => S.sections.map((c) => [c.id, c.name]) },
-      { key: 'price', label: 'Price (PHP, optional)', type: 'priceopt', hint: 'Leave empty to show "Ask for today\'s price".' },
-      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
-      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
-      { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
-      { key: 'is_visible', label: 'Visible on the page', type: 'checkbox', def: true },
-    ],
-  },
-  rsections: {
-    label: 'Page sections', noun: 'section', table: 'restaurant_sections', select: '*', admin: false, order: ['sort_order', 'name'],
-    note: 'The headings on the Restaurant page\'s Main tab, in the order shown. A section cannot be deleted while it still has dishes; hide it instead.',
-    columns: [['Section', (r) => esc(r.name)], ['Order', (r) => String(r.sort_order)]],
+  sections: {
+    label: 'Menu sections', noun: 'section', table: 'categories', select: '*', admin: false, order: ['venue', 'sort_order', 'name'],
+    note: 'The headings the menu is grouped under, in the order shown. Main sections appear on the Restaurant and ordering pages; Roof Deck sections appear in the Roof Deck tab. A section cannot be deleted while it has items; hide it instead.',
+    columns: [['Section', (r) => esc(r.name)], ['Venue', (r) => esc(VENUE_LABEL[r.venue] || r.venue)], ['Order', (r) => String(r.sort_order)]],
     toggles: [{ key: 'is_visible', label: 'Visible' }],
     fields: [
       { key: 'name', label: 'Section name', type: 'text', required: true, max: 60 },
-      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
-      { key: 'is_visible', label: 'Visible on the page', type: 'checkbox', def: true },
+      { key: 'venue', label: 'Venue', type: 'select', required: true, options: () => Object.entries(VENUE_LABEL) },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first within a venue.' },
+      { key: 'is_visible', label: 'Visible on the pages', type: 'checkbox', def: true },
     ],
+    // a new section needs a web-friendly name; an existing one keeps its slug
+    beforeSave: (payload, row, rows) => {
+      if (row) return;
+      const base = slugify(payload.name);
+      let slug = base, n = 2;
+      while (rows.some((r) => r.slug === slug)) slug = `${base}-${n++}`;
+      payload.slug = slug;
+    },
   },
   rooms: {
     label: 'Room rates', noun: 'room rate', table: 'room_rates', select: '*', admin: true, order: ['sort_order', 'name'],
@@ -190,7 +192,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['restaurant', 'Restaurant'], ['rsections', 'Page sections'], ['rooms', 'Room rates'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['sections', 'Menu sections'], ['rooms', 'Room rates'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -212,7 +214,7 @@ function startApp() {
 function showTab(tab) {
   S.tab = tab;
   S.rng = { orders: {}, inquiries: {}, history: {} };
-  S.rq = ''; S.iq = ''; S.rcat = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
+  S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
   document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
@@ -368,8 +370,7 @@ async function cancelOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', categories: 'menu', room_rates: 'rooms', price_history: 'history',
-  restaurant_dishes: 'restaurant', restaurant_sections: 'rsections',
+  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -383,7 +384,7 @@ function refreshTab(tab = S.tab) {
 
 // A change made by anyone else (another staff member, a customer) refreshes the tab being viewed.
 const liveRefresh = debounce((table) => {
-  const wants = TAB_FOR_TABLE[table] === S.tab || (table === 'restaurant_sections' && S.tab === 'restaurant');
+  const wants = TAB_FOR_TABLE[table] === S.tab || (table === 'categories' && S.tab === 'menu');
   if (wants && !isEditing()) refreshTab();
 }, 300);
 
@@ -603,7 +604,6 @@ async function loadResource(key) {
   const cfg = RES[key];
   try {
     if (key === 'menu') await ensureCategories();
-    if (key === 'restaurant') await ensureSections();
     let q = supabase.from(cfg.table).select(cfg.select);
     cfg.order.forEach((c) => (q = q.order(c)));
     const { data, error } = await q;
@@ -615,15 +615,9 @@ async function loadResource(key) {
 }
 
 async function ensureCategories() {
-  const { data, error } = await supabase.from('categories').select('id, name').order('sort_order').order('name');
+  const { data, error } = await supabase.from('categories').select('id, name, venue').order('venue').order('sort_order').order('name');
   if (error) throw error;
   S.categories = data;
-}
-
-async function ensureSections() {
-  const { data, error } = await supabase.from('restaurant_sections').select('id, name').order('sort_order').order('name');
-  if (error) throw error;
-  S.sections = data;
 }
 
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
@@ -635,14 +629,18 @@ function renderResource(key) {
     $('st-panel').innerHTML = `<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${(key === 'menu' || key === 'restaurant') ? `<select id="r-cat" class="st-select" aria-label="Filter by ${key === 'menu' ? 'category' : 'section'}"><option value="">All ${key === 'menu' ? 'categories' : 'sections'}</option>${(key === 'menu' ? S.categories : S.sections).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
+        ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
+          <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>
+          <select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
         ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
       ${cfg.note ? `<p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">${esc(cfg.note)}</p>` : ''}
       <div id="r-body"></div>`;
   }
   const q = (S.rq || '').toLowerCase().trim();
-  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || (r.category_id ?? r.section_id) === S.rcat));
+  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || r.category_id === S.rcat)
+    && (!S.rvenue || r.categories?.venue === S.rvenue)
+    && (S.rstock !== 'low' || isLowStock(r)) && (S.rstock !== 'untracked' || r.stock == null));
   const body = $('r-body');
   if (!currentRows.length) {
     body.innerHTML = `<div class="empty"><strong>No ${esc(cfg.noun)}s yet</strong>${canWrite ? `Use “Add ${esc(cfg.noun)}” to create the first one.` : ''}</div>`;
@@ -654,12 +652,16 @@ function renderResource(key) {
   }
   const heads = [...cfg.columns.map((c) => c[0]), ...cfg.toggles.map((t) => t.label)];
   const td = (h, html, cls = '') => `<td data-label="${esc(h)}" class="${cls}">${html}</td>`;
-  body.innerHTML = `<p class="count-line">Showing ${rows.length} of ${currentRows.length}</p>
+  const lowN = key === 'menu' ? currentRows.filter(isLowStock).length : 0;
+  body.innerHTML = `<p class="count-line">Showing ${rows.length} of ${currentRows.length}${lowN ? ` · ${lowN} low or out of stock` : ''}</p>
     <div class="tbl-wrap"><table class="tbl resp"><thead><tr>${heads.map((h) => `<th>${esc(h)}</th>`).join('')}${canWrite ? '<th></th>' : ''}</tr></thead><tbody>
     ${rows.map((r) => `<tr>${cfg.columns.map(([h, f]) => {
       let html = f(r);
       if (canWrite && html.includes('data-pricecell')) {
         html = `<button type="button" class="qprice" data-quickprice="${esc(r.id)}" aria-label="Edit price of ${esc(r.name)}">${html}</button>`;
+      }
+      if (canWrite && html.includes('data-stockcell')) {
+        html = `<button type="button" class="qprice" data-quickstock="${esc(r.id)}" aria-label="Edit stock of ${esc(r.name)}">${html}</button>`;
       }
       return td(h, html, h === '' ? 'img-cell' : '');
     }).join('')}${cfg.toggles.map((t) => td(t.label, `<label class="switch"><input type="checkbox" data-toggle="${t.key}" data-id="${esc(r.id)}" ${r[t.key] ? 'checked' : ''} ${canWrite ? '' : 'disabled'} aria-label="${esc(t.label)}: ${esc(r.name || r.code)}"><span></span></label>`)).join('')}
@@ -697,6 +699,7 @@ function fieldHtml(f, row) {
   if (f.type === 'textarea') input = `<textarea id="${id}" name="${f.key}" rows="3" maxlength="${f.max || 500}">${esc(v ?? '')}</textarea>`;
   else if (f.type === 'select') input = `<select id="${id}" name="${f.key}"><option value="">Select…</option>${f.options().map(([val, lab]) => `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
   else if (f.type === 'datetime') input = `<input type="datetime-local" id="${id}" name="${f.key}" value="${esc(toLocalInput(v))}">`;
+  else if (f.type === 'stockopt') input = `<input type="text" inputmode="numeric" id="${id}" name="${f.key}" value="${esc(v ?? '')}" placeholder="Not tracked" autocomplete="off">`;
   else if (f.type === 'price' || f.type === 'priceopt' || f.type === 'money0') input = `<input type="text" inputmode="decimal" id="${id}" name="${f.key}" value="${esc(v ?? '')}" autocomplete="off">`;
   else if (f.type === 'int') input = `<input type="number" step="1" id="${id}" name="${f.key}" value="${esc(v ?? 0)}">`;
   else input = `<input type="text" id="${id}" name="${f.key}" value="${esc(v ?? '')}" maxlength="${f.max || 200}" autocomplete="off">`;
@@ -726,6 +729,11 @@ function collect(cfg, form) {
     let v = f.type === 'checkbox' ? el.checked : el.value.trim();
     let bad = null;
     if (f.type === 'checkbox') { /* ok */ }
+    else if (f.type === 'stockopt') {
+      if (v === '') v = null;
+      else if (!/^\d{1,6}$/.test(v)) bad = 'Enter a whole number (0 or more), or leave empty.';
+      else v = Number(v);
+    }
     else if (f.type === 'priceopt') {
       if (v === '') v = null;
       else { const r = parsePrice(v); if (r.ok) v = r.value; else bad = r.message; }
@@ -761,6 +769,7 @@ async function onSave(e) {
   const cfg = RES[editing.key];
   const form = e.currentTarget;
   const { payload, errors } = collect(cfg, form);
+  if (!Object.keys(errors).length && cfg.beforeSave) cfg.beforeSave(payload, editing.row, currentRows);
   form.querySelectorAll('.field').forEach((f) => { f.classList.remove('invalid'); });
   const keys = Object.keys(errors);
   keys.forEach((k) => {
@@ -823,7 +832,7 @@ async function deleteRow(key, id) {
   loadResource(key);
 }
 
-const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night', restaurant_dishes: 'price' };
+const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night' };
 
 function quickPrice(id, cell) {
   const row = currentRows.find((r) => r.id === id);
@@ -851,15 +860,41 @@ async function saveQuickPrice(form) {
   loadResource(S.tab);
 }
 
+function quickStock(id, cell) {
+  const row = currentRows.find((r) => r.id === id);
+  if (!row) return;
+  cell.innerHTML = `<form class="qp-form" data-qs="${esc(id)}" novalidate>
+    <input type="text" inputmode="numeric" value="${esc(row.stock ?? '')}" placeholder="Not tracked" aria-label="Stock of ${esc(row.name)}" autocomplete="off">
+    <button type="submit" class="btn-xs">Save</button><button type="button" class="btn-xs" data-qp-cancel="1">Cancel</button>
+    <div class="qp-err" role="alert"></div></form>`;
+  const inp = cell.querySelector('input');
+  inp.focus(); inp.select();
+}
+
+async function saveQuickStock(form) {
+  const id = form.dataset.qs;
+  const raw = form.querySelector('input').value.trim();
+  let value = null;
+  if (raw !== '') {
+    if (!/^\d{1,6}$/.test(raw)) { form.querySelector('.qp-err').textContent = 'Enter a whole number (0 or more), or leave empty to stop tracking.'; form.querySelector('input').focus(); return; }
+    value = Number(raw);
+  }
+  form.querySelectorAll('button, input').forEach((e) => (e.disabled = true));
+  const { error } = await supabase.from('menu_items').update({ stock: value }).eq('id', id);
+  if (error) { toast(friendlyError(error), 'error'); renderResource(S.tab); return; }
+  toast(value == null ? 'Stock tracking turned off for this item.' : `Stock set to ${value}.`);
+  loadResource(S.tab);
+}
+
 /* ---------- price history ---------- */
-const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate', restaurant_dishes: 'Restaurant dish' };
+const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate' };
 let histRows = [];
 
 async function loadHistory() {
   try {
     const { data, error } = await applyRange(supabase.from('price_history').select('*'), 'history', 'changed_at').order('changed_at', { ascending: false }).limit(hasRange('history') ? 1000 : 300);
     if (error) throw error;
-    histRows = data;
+    histRows = data.map((h) => (h.table_name === 'restaurant_dishes' ? { ...h, table_name: 'menu_items' } : h));   // dishes were merged into the menu
     if (S.tab === 'history') renderHistory();
   } catch (err) { panelError(err, loadHistory); }
 }
@@ -1092,6 +1127,7 @@ function init() {
     else if (t.dataset.edit) openDialog(S.tab, currentRows.find((r) => r.id === t.dataset.edit));
     else if (t.dataset.delete) deleteRow(S.tab, t.dataset.delete);
     else if (t.dataset.quickprice) quickPrice(t.dataset.quickprice, t.closest('td'));
+    else if (t.dataset.quickstock) quickStock(t.dataset.quickstock, t.closest('td'));
     else if (t.dataset.qpCancel) renderResource(S.tab);
     else if (t.dataset.staffToggle) setStaff(t.dataset.staffToggle, t.dataset.role, t.dataset.active !== 'true');
   });
@@ -1114,6 +1150,8 @@ function init() {
     }
     if (e.target.dataset.toggle) toggleField(S.tab, e.target.dataset.id, e.target.dataset.toggle);
     if (e.target.id === 'r-cat') { S.rcat = e.target.value; renderResource(S.tab); }
+    if (e.target.id === 'r-venue') { S.rvenue = e.target.value; renderResource(S.tab); }
+    if (e.target.id === 'r-stock') { S.rstock = e.target.value; renderResource(S.tab); }
   });
   $('st-panel').addEventListener('input', (e) => {
     if (e.target.id === 'o-search') { S.orderSearch = e.target.value; renderOrders(); }
@@ -1126,6 +1164,7 @@ function init() {
   });
   $('st-panel').addEventListener('submit', async (e) => {
     if (e.target.dataset.qp) { e.preventDefault(); saveQuickPrice(e.target); return; }
+    if (e.target.dataset.qs) { e.preventDefault(); saveQuickStock(e.target); return; }
     if (e.target.id !== 'staff-form') return;
     e.preventDefault();
     await onCreateStaff(e.target);

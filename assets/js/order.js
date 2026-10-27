@@ -31,41 +31,39 @@ function saveCart() {
 }
 
 /* ---------- catalog ---------- */
-// Same structure as the Restaurant page: a Main venue (sections in the order staff set) and a Roof Deck venue.
-const ROOF_SLUGS = ['roofdeck-grill', 'lemon-drinks'];
-const isOrderable = (it) => it.price != null && it.is_available;
+// Same structure as the Restaurant page: a Main venue and a Roof Deck venue, each a list of sections.
+// Everything comes from one menu (categories + menu_items), the same list staff edit in the dashboard.
+const LOW_STOCK = 5;
+const isOrderable = (it) => it.price != null && it.is_available;      // is_available already accounts for stock
+const maxQty = (it) => Math.min(50, it.stock ?? 50);
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
   try {
-    const [cats, items, secs, dishes] = await Promise.all([
+    const [cats, items] = await Promise.all([
       supabase.from('categories').select('*').eq('is_visible', true).order('sort_order').order('name'),
       supabase.from('menu_items').select('*').eq('is_visible', true).order('sort_order').order('name'),
-      supabase.from('restaurant_sections').select('id, name, sort_order').eq('is_visible', true).order('sort_order').order('name'),
-      supabase.from('restaurant_dishes').select('id, section_id, name, description, price, image_url, sort_order').eq('is_visible', true).order('sort_order').order('name'),
     ]);
     if (cats.error) throw cats.error;
     if (items.error) throw items.error;
-    // The Restaurant page tables are optional here: if they cannot be read, only the menu items are shown.
-    const hasRestaurant = !secs.error && !dishes.error;
 
     state.categories = cats.data;
     const visibleCats = new Set(cats.data.map((c) => c.id));
-    const menuItems = items.data.filter((i) => visibleCats.has(i.category_id))
-      .map((i) => ({ ...i, price: Number(i.price), is_available: Boolean(i.is_available) }));
-    const dishToItem = (d) => ({ ...d, price: d.price == null ? null : Number(d.price), is_available: d.price != null });
+    const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => ({
+      ...i,
+      price: i.price == null ? null : Number(i.price),
+      stock: i.stock == null ? null : Number(i.stock),
+      is_available: Boolean(i.is_available) && (i.stock == null || i.stock > 0),
+    }));
 
-    const main = hasRestaurant
-      ? secs.data.map((s) => ({ id: s.id, title: s.name, items: dishes.data.filter((d) => d.section_id === s.id).map(dishToItem) }))
-      : [];
-    const venues = { main, roofdeck: [] };
+    const venues = { main: [], roofdeck: [] };
     for (const c of cats.data) {
-      const list = menuItems.filter((i) => i.category_id === c.id);
-      if (!list.length) continue;
-      (ROOF_SLUGS.includes(c.slug) ? venues.roofdeck : venues.main).push({ id: c.id, title: c.name, items: list });
+      const sectionItems = list.filter((i) => i.category_id === c.id);
+      // Main lists every section (empty ones say "ask your server"); Roof Deck only lists sections that have items.
+      if (c.venue === 'main' || sectionItems.length) venues[c.venue]?.push({ id: c.id, title: c.name, items: sectionItems });
     }
     state.venues = venues;
-    state.items = new Map([...venues.main, ...venues.roofdeck].flatMap((s) => s.items).map((i) => [i.id, i]));
+    state.items = new Map(list.map((i) => [i.id, i]));
     state.loaded = true;
     $('banner').innerHTML = '';
     reconcileCart();
@@ -80,14 +78,15 @@ async function loadCatalog({ silent = false } = {}) {
   }
 }
 
-// Drop cart lines whose item was hidden, removed, unpriced, or sold out.
+// Drop cart lines whose item was hidden, removed, unpriced or sold out, and trim quantities to the stock left.
 function reconcileCart() {
-  let removed = 0;
-  for (const id of [...state.cart.keys()]) {
+  let changed = 0;
+  for (const [id, qty] of [...state.cart]) {
     const it = state.items.get(id);
-    if (!it || !isOrderable(it)) { state.cart.delete(id); removed++; }
+    if (!it || !isOrderable(it)) { state.cart.delete(id); changed++; }
+    else if (qty > maxQty(it)) { state.cart.set(id, maxQty(it)); changed++; }
   }
-  if (removed) { saveCart(); toast('Some items in your cart are no longer available and were removed.', 'error'); }
+  if (changed) { saveCart(); toast('Your cart was updated because some items are no longer available in that quantity.', 'error'); }
 }
 
 function renderVenueTabs() {
@@ -109,8 +108,15 @@ function dishControls(it) {
   return `<div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
     <button type="button" data-action="dec" data-id="${esc(it.id)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
     <output aria-live="polite">${q}</output>
-    <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${q >= 50 ? 'disabled' : ''}>+</button></div>`;
+    <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${q >= maxQty(it) ? 'disabled' : ''}>+</button></div>`;
 }
+
+const priceLine = (it) => {
+  const price = it.price != null ? peso(it.price) : 'Ask for today&rsquo;s price';
+  const low = it.price != null && it.is_available && it.stock != null && it.stock <= LOW_STOCK
+    ? ` <span class="stock-note">Only ${it.stock} left</span>` : '';
+  return `<span class="price">${price}</span>${low}`;
+};
 
 function renderMenu() {
   const root = $('menu-root');
@@ -137,7 +143,7 @@ function renderMenu() {
           <div class="dish-body">
             <h3>${esc(it.name)}</h3>
             ${it.description ? `<p>${esc(it.description)}</p>` : ''}
-            <div class="dish-foot"><span class="price">${it.price != null ? peso(it.price) : 'Ask for today&rsquo;s price'}</span><span class="controls">${dishControls(it)}</span></div>
+            <div class="dish-foot"><span class="dish-price">${priceLine(it)}</span><span class="controls">${dishControls(it)}</span></div>
           </div>
         </article>`).join('')}
       </div>` : '<p class="empty-sec">Ask your server for today&rsquo;s selection.</p>'}
@@ -162,7 +168,7 @@ function renderCart() {
       <div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
         <button type="button" data-action="dec" data-id="${esc(it.id)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
         <output>${qty}</output>
-        <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${qty >= 50 ? 'disabled' : ''}>+</button>
+        <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${qty >= maxQty(it) ? 'disabled' : ''}>+</button>
       </div>
       <button type="button" class="btn-xs danger" data-action="remove" data-id="${esc(it.id)}" style="justify-self:end;" aria-label="Remove ${esc(it.name)} from cart">Remove</button>
     </div>`).join('');
@@ -181,7 +187,7 @@ function renderCart() {
 function setQty(id, qty) {
   const it = state.items.get(id);
   if (!it || !it.is_available) return;
-  if (qty <= 0) state.cart.delete(id); else state.cart.set(id, Math.min(50, qty));
+  if (qty <= 0) state.cart.delete(id); else state.cart.set(id, Math.min(maxQty(it), qty));
   saveCart();
   const card = document.querySelector(`.dish[data-id="${CSS.escape(id)}"] .controls`);
   if (card) card.innerHTML = dishControls(it);
@@ -424,8 +430,6 @@ async function init() {
     supabase.channel('catalog')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_sections' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_dishes' }, refresh)
       .subscribe()
   );
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

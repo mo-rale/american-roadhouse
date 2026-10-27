@@ -10,7 +10,9 @@ const money = (n) => `₱${Number(n).toLocaleString('en-PH', { maximumFractionDi
 const numberIn = (text) => Number(String(text).replace(/[^0-9.]/g, '')) || 0;
 
 function apply(items, rooms) {
-  const itemMap = new Map(items.filter((i) => i.is_visible).map((i) => [i.id, i]));
+  // an item with a stock number of 0 counts as sold out
+  const itemMap = new Map(items.filter((i) => i.is_visible)
+    .map((i) => [i.id, { ...i, is_available: i.is_available && (i.stock == null || i.stock > 0) }]));
   document.querySelectorAll('[data-live-items]').forEach((el) => {
     const found = el.dataset.liveItems.split('|').map((id) => itemMap.get(id));
     const row = el.closest('.menu-item');
@@ -20,7 +22,7 @@ function apply(items, rooms) {
     }
     if (row) row.hidden = false;
     const fmt = el.dataset.liveFmt || '{0}';
-    const part = (f) => (!f ? '&mdash;' : f.is_available ? money(f.price) : 'Sold out');
+    const part = (f) => (!f ? '&mdash;' : !f.is_available ? 'Sold out' : f.price == null ? 'Ask for today&rsquo;s price' : money(f.price));
     el.innerHTML = found.every((f) => f && !f.is_available)
       ? 'Sold out'
       : fmt.replace(/\{(\d)\}/g, (_, i) => part(found[Number(i)]));
@@ -70,7 +72,7 @@ function setRoomAvailable(priceEl, available) {
 
 async function load() {
   const [items, rooms] = await Promise.all([
-    supabase.from('menu_items').select('id, price, is_available, is_visible'),
+    supabase.from('menu_items').select('id, price, is_available, is_visible, stock'),
     supabase.from('room_rates').select('id, price_per_night, is_active'),
   ]);
   if (items.error || rooms.error) return;      // keep the prices already on the page
