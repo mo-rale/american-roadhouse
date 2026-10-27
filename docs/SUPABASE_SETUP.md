@@ -8,7 +8,7 @@ The site stays static. Customers use `order.html`; staff use `<random-name>.html
 2. SQL Editor → run `supabase/migrations/0001_ordering.sql` (once, on a fresh project).
 2b. Run `supabase/migrations/0002_inquiries.sql` too. It adds the `inquiries` table so booking, table-reservation and contact forms also appear in the staff dashboard's **Inquiries** tab (the email via the form service still goes out as before). Visitors can only submit through `submit_inquiry()`; only staff can read them.
 2c. Run `supabase/migrations/0003_menu_images.sql`. It creates the public `menu-images` storage bucket so staff can upload photos for menu items and rooms from the dashboard (JPG, PNG or WebP, resized in the browser, 3 MB cap). Only active staff can add, replace or remove files.
-2d. Run `supabase/migrations/0004_realtime_more.sql`, `0005_rooms_public_status.sql` and `0006_restaurant_page.sql` (in that order). The last one creates the sections and dishes behind the Restaurant page's **Main** tab, seeded with what the page showed before, so staff can edit them in the dashboard's **Restaurant** and **Page sections** tabs.
+2d. Run `supabase/migrations/0004_realtime_more.sql`, `0005_rooms_public_status.sql`, `0006_restaurant_page.sql` and `0007_order_restaurant_dishes.sql` (in that order). The last one lets customers order Restaurant-page dishes (Main tab) once staff give them a price; the ordering page mirrors the Restaurant page, with Main and Roof Deck tabs. The last one creates the sections and dishes behind the Restaurant page's **Main** tab, seeded with what the page showed before, so staff can edit them in the dashboard's **Restaurant** and **Page sections** tabs.
 3. Then run `supabase/seed.sql` for the starter categories, priced menu items and room rates taken from the current site. Items that are "ask for today's price" are not seeded; add them in the dashboard.
 
 Or with the CLI: `supabase link --project-ref <ref>` then `supabase db push`.
@@ -97,7 +97,7 @@ The dashboard is deliberately not at `/staff.html`. It is a randomly named file 
 
 ## Live prices on the public pages
 
-`menu.html`, `rooms.html` and the home page read prices from the database through `assets/js/live-prices.js`. Price changes, sold-out switches and hidden items made in the dashboard appear on open pages within a moment (hidden items disappear on the next refresh or tab focus, at most a minute later). The price typed into each page's HTML is only the fallback if the database cannot be reached.
+`restaurant.html`, `rooms.html` and the home page read prices from the database through `assets/js/live-prices.js`. Price changes, sold-out switches and hidden items made in the dashboard appear on open pages within a moment (hidden items disappear on the next refresh or tab focus, at most a minute later). The price typed into each page's HTML is only the fallback if the database cannot be reached.
 
 - Each price is linked to its database record by id (`data-live-items` / `data-live-room`), so renaming an item in the dashboard does not break the link. If the seed is ever re-run, the ids change and these attributes must be updated.
 - Dishes marked "Ask for today's price" are not linked yet. Add them in the dashboard, then link them the same way.

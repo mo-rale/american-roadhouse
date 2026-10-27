@@ -10,9 +10,10 @@ const STEPS = ['pending', 'preparing', 'ready', 'completed'];
 
 const state = {
   categories: [],
-  items: new Map(),
+  items: new Map(),           // every orderable or listed item, by id
+  venues: { main: [], roofdeck: [] },
+  venue: 'main',              // Main is the default, as on the Restaurant page
   cart: new Map(),            // item id -> qty
-  filter: 'all',
   loaded: false,
   confirmId: null,
   channels: [],
@@ -30,18 +31,41 @@ function saveCart() {
 }
 
 /* ---------- catalog ---------- */
+// Same structure as the Restaurant page: a Main venue (sections in the order staff set) and a Roof Deck venue.
+const ROOF_SLUGS = ['roofdeck-grill', 'lemon-drinks'];
+const isOrderable = (it) => it.price != null && it.is_available;
+
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
   try {
-    const [cats, items] = await Promise.all([
+    const [cats, items, secs, dishes] = await Promise.all([
       supabase.from('categories').select('*').eq('is_visible', true).order('sort_order').order('name'),
       supabase.from('menu_items').select('*').eq('is_visible', true).order('sort_order').order('name'),
+      supabase.from('restaurant_sections').select('id, name, sort_order').eq('is_visible', true).order('sort_order').order('name'),
+      supabase.from('restaurant_dishes').select('id, section_id, name, description, price, image_url, sort_order').eq('is_visible', true).order('sort_order').order('name'),
     ]);
     if (cats.error) throw cats.error;
     if (items.error) throw items.error;
+    // The Restaurant page tables are optional here: if they cannot be read, only the menu items are shown.
+    const hasRestaurant = !secs.error && !dishes.error;
+
     state.categories = cats.data;
     const visibleCats = new Set(cats.data.map((c) => c.id));
-    state.items = new Map(items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => [i.id, i]));
+    const menuItems = items.data.filter((i) => visibleCats.has(i.category_id))
+      .map((i) => ({ ...i, price: Number(i.price), is_available: Boolean(i.is_available) }));
+    const dishToItem = (d) => ({ ...d, price: d.price == null ? null : Number(d.price), is_available: d.price != null });
+
+    const main = hasRestaurant
+      ? secs.data.map((s) => ({ id: s.id, title: s.name, items: dishes.data.filter((d) => d.section_id === s.id).map(dishToItem) }))
+      : [];
+    const venues = { main, roofdeck: [] };
+    for (const c of cats.data) {
+      const list = menuItems.filter((i) => i.category_id === c.id);
+      if (!list.length) continue;
+      (ROOF_SLUGS.includes(c.slug) ? venues.roofdeck : venues.main).push({ id: c.id, title: c.name, items: list });
+    }
+    state.venues = venues;
+    state.items = new Map([...venues.main, ...venues.roofdeck].flatMap((s) => s.items).map((i) => [i.id, i]));
     state.loaded = true;
     $('banner').innerHTML = '';
     reconcileCart();
@@ -56,28 +80,29 @@ async function loadCatalog({ silent = false } = {}) {
   }
 }
 
-// Drop cart lines whose item was hidden, removed, or sold out.
+// Drop cart lines whose item was hidden, removed, unpriced, or sold out.
 function reconcileCart() {
   let removed = 0;
   for (const id of [...state.cart.keys()]) {
     const it = state.items.get(id);
-    if (!it || !it.is_available) { state.cart.delete(id); removed++; }
+    if (!it || !isOrderable(it)) { state.cart.delete(id); removed++; }
   }
   if (removed) { saveCart(); toast('Some items in your cart are no longer available and were removed.', 'error'); }
 }
 
-function renderChips() {
+function renderVenueTabs() {
+  document.querySelectorAll('#venue-tabs [data-venue]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.venue === state.venue)));
+}
+
+// Quick links that scroll to a section of the current venue.
+function renderChips(sections) {
   const tabs = $('cat-tabs');
-  const withItems = state.categories.filter((c) => [...state.items.values()].some((i) => i.category_id === c.id));
-  const opts = [{ id: 'all', name: 'All' }, ...withItems];
-  if (!opts.some((o) => o.id === state.filter)) state.filter = 'all';
-  tabs.innerHTML = opts
-    .map((o) => `<button type="button" data-cat="${esc(o.id)}" aria-pressed="${o.id === state.filter}">${esc(o.name)}</button>`)
-    .join('');
-  tabs.hidden = withItems.length < 2;
+  tabs.innerHTML = sections.map((s) => `<button type="button" data-jump="sec-${esc(s.id)}">${esc(s.title)}</button>`).join('');
+  tabs.hidden = sections.length < 2;
 }
 
 function dishControls(it) {
+  if (it.price == null) return '<span class="badge">Ask your server</span>';
   if (!it.is_available) return '<span class="badge bad">Sold out</span>';
   const q = state.cart.get(it.id) || 0;
   if (!q) return `<button type="button" class="btn btn-primary btn-add" data-action="add" data-id="${esc(it.id)}">Add</button>`;
@@ -90,29 +115,32 @@ function dishControls(it) {
 function renderMenu() {
   const root = $('menu-root');
   root.setAttribute('aria-busy', 'false');
-  renderChips();
-  const sections = state.categories
-    .filter((c) => state.filter === 'all' || c.id === state.filter)
-    .map((c) => ({ c, list: [...state.items.values()].filter((i) => i.category_id === c.id) }))
-    .filter((s) => s.list.length);
+  const sections = state.venues[state.venue];
+  renderVenueTabs();
+  renderChips(sections);
 
   if (!sections.length) {
     root.innerHTML = '<div class="empty"><strong>The menu is being updated</strong>No dishes are available to order right now. Please check back soon or call 0915 875 4860.</div>';
     return;
   }
-  root.innerHTML = sections.map(({ c, list }) => `
-    <section class="cat-section" aria-labelledby="cat-${esc(c.slug)}">
-      <h2 id="cat-${esc(c.slug)}">${esc(c.name)}</h2>
-      <div class="dish-grid">${list.map((it) => `
-        <article class="dish ${it.is_available ? '' : 'sold-out'}" data-id="${esc(it.id)}">
-          <img src="${esc(safeImg(it.image_url))}" alt="${esc(it.name)}" loading="lazy" width="96" height="96">
+  const noneOrderableHere = !sections.some((s) => s.items.some(isOrderable));
+  const note = noneOrderableHere && state.venue === 'main' && state.venues.roofdeck.length
+    ? `<div class="banner info">Online prices for these dishes aren&rsquo;t set yet, so please ask your server. You can
+        <button type="button" class="link-btn" data-venue="roofdeck">order from the Roof Deck menu</button> right now.</div>`
+    : '';
+  root.innerHTML = note + sections.map((s) => `
+    <section class="cat-section" id="sec-${esc(s.id)}" aria-labelledby="h-${esc(s.id)}">
+      <h2 id="h-${esc(s.id)}">${esc(s.title)}</h2>
+      ${s.items.length ? `<div class="dish-grid">${s.items.map((it) => `
+        <article class="dish ${it.price != null && !it.is_available ? 'sold-out' : ''}" data-id="${esc(it.id)}">
+          ${it.image_url ? `<img src="${esc(safeImg(it.image_url))}" alt="${esc(it.name)}" loading="lazy" width="96" height="96">` : ''}
           <div class="dish-body">
             <h3>${esc(it.name)}</h3>
             ${it.description ? `<p>${esc(it.description)}</p>` : ''}
-            <div class="dish-foot"><span class="price">${peso(it.price)}</span><span class="controls">${dishControls(it)}</span></div>
+            <div class="dish-foot"><span class="price">${it.price != null ? peso(it.price) : 'Ask for today&rsquo;s price'}</span><span class="controls">${dishControls(it)}</span></div>
           </div>
         </article>`).join('')}
-      </div>
+      </div>` : '<p class="empty-sec">Ask your server for today&rsquo;s selection.</p>'}
     </section>`).join('');
 }
 
@@ -191,7 +219,11 @@ async function ensureSession() {
   const { data } = await supabase.auth.getSession();
   if (data.session) return data.session;
   const { data: anon, error } = await supabase.auth.signInAnonymously();
-  if (error) throw new Error('Ordering is temporarily unavailable. Please call 0915 875 4860 to order.');
+  if (error) {
+    // Most likely cause: "Allow anonymous sign-ins" is off in Supabase (Authentication > Sign In / Providers).
+    console.error('Guest sign-in failed:', error.message);
+    throw new Error('Ordering is temporarily unavailable. Please call 0915 875 4860 to order.');
+  }
   return anon.session;
 }
 
@@ -340,17 +372,22 @@ function closeCart() { $('cart').classList.remove('open'); document.body.style.o
 async function init() {
   if (!isConfigured) {
     $('shop').hidden = true;
-    $('banner').innerHTML = '<div class="banner info">Online ordering isn&rsquo;t available yet. Please call <a href="tel:+639158754860"><strong>0915 875 4860</strong></a> to place an order, or see our <a href="menu.html" style="text-decoration:underline;">menu</a>.</div>';
+    $('banner').innerHTML = '<div class="banner info">Online ordering isn&rsquo;t available yet. Please call <a href="tel:+639158754860"><strong>0915 875 4860</strong></a> to place an order, or see our <a href="restaurant.html#dining" style="text-decoration:underline;">menu</a>.</div>';
     console.warn('Supabase is not configured. Run `node scripts/build-env.mjs` after creating .env (see docs/SUPABASE_SETUP.md).');
     return;
   }
   loadCart();
 
   $('cat-tabs').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-cat]');
-    if (!b) return;
-    state.filter = b.dataset.cat;
+    const b = e.target.closest('button[data-jump]');
+    if (b) document.getElementById(b.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.addEventListener('click', (e) => {
+    const v = e.target.closest('[data-venue]');
+    if (!v || !state.venues[v.dataset.venue]) return;
+    state.venue = v.dataset.venue;
     renderMenu();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-action]');
@@ -387,6 +424,8 @@ async function init() {
     supabase.channel('catalog')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_sections' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_dishes' }, refresh)
       .subscribe()
   );
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

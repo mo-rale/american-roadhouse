@@ -34,7 +34,11 @@
 
     <div id="shop" class="shop-layout">
       <div>
-        <nav id="cat-tabs" class="cat-tabs" aria-label="Menu categories"></nav>
+        <div class="venue-tabs" id="venue-tabs" role="tablist" aria-label="Choose a restaurant">
+          <button type="button" class="venue-btn" role="tab" data-venue="main" aria-selected="true"><span>Main</span><span class="venue-sub">Western &amp; Filipino Cuisine</span></button>
+          <button type="button" class="venue-btn" role="tab" data-venue="roofdeck" aria-selected="false"><span>Roof Deck</span><span class="venue-sub">Filipino Favorites</span></button>
+        </div>
+        <nav id="cat-tabs" class="cat-tabs" aria-label="Menu sections"></nav>
         <div id="menu-root" aria-live="polite" aria-busy="true">
           <div class="dish-grid">
             <div class="skel skel-card"></div><div class="skel skel-card"></div>
@@ -123,7 +127,7 @@
       </div>
       <div>
         <h4>Quick Links</h4>
-        <a href="rooms.html">Rooms</a><a href="restaurant.html">Restaurant</a><a href="menu.html">Menu</a><a href="gallery.html">Gallery</a><a href="about.html">About</a><a href="contact.html">Contact</a>
+        <a href="rooms.html">Rooms</a><a href="restaurant.html">Restaurant</a><a href="gallery.html">Gallery</a><a href="about.html">About</a><a href="contact.html">Contact</a>
       </div>
       <div>
         <h4>Visit</h4>

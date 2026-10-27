@@ -326,3 +326,19 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .pw-row{ display:flex; gap:8px; align-items:center; }
 .pw-row input{ flex:1; min-width:0; }
 .pw-row .btn-xs{ white-space:nowrap; flex:none; }
+
+/* Main / Roof Deck tabs on the ordering page (same look as the Restaurant page) */
+.venue-tabs{ display:flex; border-bottom:1px solid var(--line); margin-bottom:6px; }
+.venue-btn{ display:flex; flex-direction:column; align-items:flex-start; gap:3px; background:none; border:0; border-bottom:2px solid transparent;
+  margin:0 36px -1px 0; padding:12px 4px 14px; font-family:'Playfair Display',Georgia,serif; font-size:19px; color:#8a8378; text-align:left; cursor:pointer; }
+.venue-btn .venue-sub{ font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#8a8378; }
+.venue-btn:hover{ color:var(--ink); }
+.venue-btn[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--brass); }
+.venue-btn[aria-selected="true"] .venue-sub{ color:var(--wood); }
+.venue-btn:focus-visible{ outline:2px solid var(--brass); outline-offset:3px; }
+.link-btn{ background:none; border:0; padding:0; font:inherit; font-weight:600; color:var(--wood); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.empty-sec{ margin:0; padding:16px 0 4px; color:#8a8378; font-size:14.5px; }
+@media (max-width:560px){
+  .venue-btn{ flex:1; margin-right:14px; }
+  .venue-btn:last-child{ margin-right:0; }
+}

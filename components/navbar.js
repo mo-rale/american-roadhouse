@@ -8,7 +8,6 @@ window.AmericanRoadhouseNavbar = String.raw`<nav id="site-nav" aria-label="Prima
     <div class="nav-links">
       <a href="rooms.html">Rooms</a>
       <a href="restaurant.html">Restaurant</a>
-      <a href="menu.html">Menu</a>
       <a href="order.html">Order</a>
       <a href="gallery.html">Gallery</a>
       <a href="about.html">About</a>
@@ -30,7 +29,6 @@ window.AmericanRoadhouseNavbar = String.raw`<nav id="site-nav" aria-label="Prima
   </button>
   <a href="rooms.html">Rooms</a>
   <a href="restaurant.html">Restaurant</a>
-  <a href="menu.html">Menu</a>
   <a href="order.html">Order</a>
   <a href="gallery.html">Gallery</a>
   <a href="about.html">About</a>
