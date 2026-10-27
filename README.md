@@ -27,11 +27,15 @@ Backed by Supabase; see [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) for the
 
 ## Run locally
 
-Open `index.html` in a browser, or serve the folder with a static web server, for example:
+From this folder (the one containing `package.json`, not its parent):
 
 ```sh
-python -m http.server 8080
+npm start
 ```
+
+Then open http://localhost:8080 (ordering page: `/order.html`). It is a dependency-free static server with caching turned off, so edits show on a normal reload. Use `PORT=3000 npm start` for another port.
+
+The online ordering and the staff dashboard need your Supabase settings: copy `.env.example` to `.env`, fill it in, and `npm start` will generate `assets/js/env.js` for you (or run `npm run build`). See `docs/SUPABASE_SETUP.md`.
 
 ## Before publishing
 

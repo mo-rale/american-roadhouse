@@ -1,0 +1,14 @@
+{
+  "name": "american-roadhouse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "American Roadhouse Hotel & Restaurant website with online ordering (static site + Supabase)",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build-env.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

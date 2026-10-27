@@ -80,17 +80,6 @@ const RES = {
       { key: 'is_available', label: 'Available to order', type: 'checkbox', def: true },
     ],
   },
-  categories: {
-    label: 'Categories', noun: 'category', table: 'categories', select: '*', admin: false, order: ['sort_order', 'name'],
-    columns: [['Name', (r) => esc(r.name)], ['Slug', (r) => esc(r.slug)], ['Order', (r) => r.sort_order]],
-    toggles: [{ key: 'is_visible', label: 'Visible' }],
-    fields: [
-      { key: 'name', label: 'Name', type: 'text', required: true, max: 80 },
-      { key: 'slug', label: 'URL slug', type: 'slug', required: true, max: 60, hint: 'lowercase letters, numbers and dashes' },
-      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
-      { key: 'is_visible', label: 'Visible to customers', type: 'checkbox', def: true },
-    ],
-  },
   rooms: {
     label: 'Room rates', noun: 'room rate', table: 'room_rates', select: '*', admin: true, order: ['sort_order', 'name'],
     columns: [['Room', (r) => esc(r.name)], ['Per night', (r) => `<span class="price" data-pricecell>${peso(r.price_per_night)}</span>`]],
@@ -103,42 +92,6 @@ const RES = {
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
       { key: 'is_active', label: 'Active', type: 'checkbox', def: true },
     ],
-  },
-  addons: {
-    label: 'Add-ons & services', noun: 'add-on', table: 'addons', select: '*', admin: true, order: ['name'],
-    columns: [['Name', (r) => esc(r.name)], ['Price', (r) => `<span class="price" data-pricecell>${peso(r.price)}</span> / ${esc(r.unit)}`]],
-    toggles: [{ key: 'is_active', label: 'Active' }],
-    fields: [
-      { key: 'name', label: 'Name', type: 'text', required: true, max: 120 },
-      { key: 'price', label: 'Price (PHP)', type: 'price', required: true },
-      { key: 'unit', label: 'Unit', type: 'text', max: 30, def: 'each', required: true },
-      { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
-      { key: 'is_active', label: 'Active', type: 'checkbox', def: true },
-    ],
-  },
-  discounts: {
-    label: 'Discounts', noun: 'discount', table: 'discounts', select: '*', admin: true, order: ['code'],
-    columns: [
-      ['Code', (r) => `<strong>${esc(r.code)}</strong>`],
-      ['Value', (r) => (r.type === 'percent' ? `${Number(r.value)}%` : peso(r.value))],
-      ['Min. order', (r) => peso(r.min_subtotal)],
-      ['Valid', (r) => `${r.starts_at ? fmtDate(r.starts_at) : 'now'} → ${r.ends_at ? fmtDate(r.ends_at) : 'no end'}`],
-    ],
-    toggles: [{ key: 'is_active', label: 'Active' }],
-    fields: [
-      { key: 'code', label: 'Code', type: 'text', required: true, max: 30, pattern: /^[A-Za-z0-9_-]{3,30}$/, patternMsg: '3–30 letters, numbers, dashes or underscores.' },
-      { key: 'type', label: 'Type', type: 'select', required: true, options: () => [['percent', 'Percent off'], ['fixed', 'Fixed amount off']] },
-      { key: 'value', label: 'Value (% or PHP)', type: 'price', required: true },
-      { key: 'min_subtotal', label: 'Minimum order (PHP, 0 = none)', type: 'money0', def: 0 },
-      { key: 'starts_at', label: 'Starts (optional)', type: 'datetime' },
-      { key: 'ends_at', label: 'Ends (optional)', type: 'datetime' },
-      { key: 'description', label: 'Description', type: 'text', max: 200, span2: true },
-      { key: 'is_active', label: 'Active', type: 'checkbox', def: true },
-    ],
-    validate: (p) => {
-      if (p.type === 'percent' && p.value > 100) return { value: 'A percentage cannot be more than 100.' };
-      if (p.starts_at && p.ends_at && new Date(p.ends_at) <= new Date(p.starts_at)) return { ends_at: 'End must be after the start.' };
-    },
   },
 };
 
@@ -205,8 +158,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['categories', 'Categories'], ['rooms', 'Room rates'],
-    ['addons', 'Add-ons'], ['discounts', 'Discounts'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -384,7 +336,7 @@ async function cancelOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', categories: 'categories', room_rates: 'rooms', addons: 'addons', discounts: 'discounts', price_history: 'history',
+  menu_items: 'menu', categories: 'menu', room_rates: 'rooms', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -398,7 +350,7 @@ function refreshTab(tab = S.tab) {
 
 // A change made by anyone else (another staff member, a customer) refreshes the tab being viewed.
 const liveRefresh = debounce((table) => {
-  const wants = TAB_FOR_TABLE[table] === S.tab || (table === 'categories' && S.tab === 'menu');
+  const wants = TAB_FOR_TABLE[table] === S.tab;
   if (wants && !isEditing()) refreshTab();
 }, 300);
 
@@ -826,7 +778,7 @@ async function deleteRow(key, id) {
   loadResource(key);
 }
 
-const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night', addons: 'price' };
+const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night' };
 
 function quickPrice(id, cell) {
   const row = currentRows.find((r) => r.id === id);
@@ -855,7 +807,7 @@ async function saveQuickPrice(form) {
 }
 
 /* ---------- price history ---------- */
-const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate', addons: 'Add-on', discounts: 'Discount' };
+const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate' };
 let histRows = [];
 
 async function loadHistory() {

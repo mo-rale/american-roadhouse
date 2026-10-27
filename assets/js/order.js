@@ -13,8 +13,6 @@ const state = {
   items: new Map(),
   cart: new Map(),            // item id -> qty
   filter: 'all',
-  code: '',                   // applied discount code
-  quote: null,                // { subtotal, discount_total, total }
   loaded: false,
   confirmId: null,
   channels: [],
@@ -142,11 +140,8 @@ function renderCart() {
     </div>`).join('');
 
   const sub = localSubtotal();
-  const q = state.quote && state.code ? state.quote : { subtotal: sub, discount_total: 0, total: sub };
+  const q = { subtotal: sub, total: sub };
   $('t-subtotal').textContent = peso(q.subtotal);
-  $('t-discount-row').hidden = !(Number(q.discount_total) > 0);
-  $('t-discount-label').textContent = `Discount (${state.code})`;
-  $('t-discount').textContent = `−${peso(q.discount_total)}`;
   $('t-total').textContent = peso(q.total);
 
   const fab = $('cart-fab');
@@ -154,11 +149,6 @@ function renderCart() {
   $('fab-count').textContent = `View order · ${count} item${count === 1 ? '' : 's'}`;
   $('fab-total').textContent = peso(q.total);
 }
-
-const refreshQuote = debounce(async () => {
-  if (!state.code || !state.cart.size) { state.quote = null; renderCart(); return; }
-  await applyCode(state.code, { quiet: true });
-}, 300);
 
 function setQty(id, qty) {
   const it = state.items.get(id);
@@ -168,32 +158,9 @@ function setQty(id, qty) {
   const card = document.querySelector(`.dish[data-id="${CSS.escape(id)}"] .controls`);
   if (card) card.innerHTML = dishControls(it);
   renderCart();
-  if (state.code) { state.quote = null; refreshQuote(); }
 }
 
 function cartPayload() { return [...state.cart].map(([id, qty]) => ({ id, qty })); }
-
-async function applyCode(code, { quiet = false } = {}) {
-  const msg = $('code-msg');
-  msg.style.color = '';
-  if (!code) { state.code = ''; state.quote = null; msg.textContent = ''; renderCart(); return; }
-  const btn = $('apply-code');
-  btn.disabled = true;
-  try {
-    const { data, error } = await supabase.rpc('quote_order', { p_items: cartPayload(), p_discount_code: code });
-    if (error) throw error;
-    state.code = data.discount_code || code;
-    state.quote = data;
-    if (!quiet) { msg.style.color = '#285A2A'; msg.textContent = 'Discount applied.'; }
-  } catch (err) {
-    state.code = ''; state.quote = null;
-    msg.style.color = '#8A3B24';
-    msg.textContent = friendlyError(err);
-  } finally {
-    btn.disabled = false;
-    renderCart();
-  }
-}
 
 /* ---------- checkout ---------- */
 const rules = {
@@ -248,12 +215,11 @@ async function onSubmit(e) {
       p_order_type: form.order_type.value,
       p_room_number: form.order_type.value === 'room_delivery' ? form.room_number.value : '',
       p_notes: form.notes.value,
-      p_discount_code: state.code,
+      p_discount_code: '',
       p_items: cartPayload(),
     });
     if (error) throw error;
     state.cart.clear(); saveCart();
-    state.code = ''; state.quote = null; $('f-code').value = ''; $('code-msg').textContent = '';
     renderCart();
     closeCart();
     await showConfirmation(data.order_id);
@@ -408,8 +374,6 @@ async function init() {
     const f = e.target.closest('.field');
     if (f?.classList.contains('invalid')) f.classList.remove('invalid');
   });
-  $('apply-code').addEventListener('click', () => applyCode($('f-code').value.trim()));
-  $('f-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCode(e.target.value.trim()); } });
 
   $('cart-fab').addEventListener('click', openCart);
   $('cart-close').addEventListener('click', closeCart);
@@ -432,7 +396,6 @@ async function init() {
   if (data.session) { subscribeMyOrders(data.session.user.id); loadMyOrders(); }
   // Safety net for the order status shown after checkout.
   setInterval(() => { if (state.confirmId && !document.hidden) onMyOrderChange(); }, 20000);
-  if (state.code) refreshQuote();
 }
 
 init();

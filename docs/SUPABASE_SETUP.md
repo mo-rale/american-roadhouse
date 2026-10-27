@@ -40,9 +40,9 @@ select id, email, 'admin' from auth.users where email = 'owner@example.com';
 | Capability | Employee | Administrator |
 |---|---|---|
 | View and update order status | yes | yes |
-| Add / edit / delete / hide / mark unavailable menu items, edit food prices, manage categories | yes | yes |
+| Add / edit / delete / hide / mark unavailable menu items, edit food prices and photos | yes | yes |
 | Reopen a completed or cancelled order | no | yes |
-| Room rates, add-ons, discounts (including prices) | view only | full |
+| Room rates (including prices) | view only | full |
 | Price history (audit trail) | view | view |
 | Manage staff | no | yes |
 
@@ -100,3 +100,7 @@ The dashboard is deliberately not at `/staff.html`. It is a randomly named file 
 - Each price is linked to its database record by id (`data-live-items` / `data-live-room`), so renaming an item in the dashboard does not break the link. If the seed is ever re-run, the ids change and these attributes must be updated.
 - Dishes marked "Ask for today's price" are not linked yet. Add them in the dashboard, then link them the same way.
 - The photographed price boards (the Roofdeck Grill and Lemon Drinks posters on the menu page) are images and do not change.
+
+## Not in the dashboard
+
+Categories, add-ons and discounts have no dashboard screens, and the ordering page has no discount-code box. The database tables (`categories`, `addons`, `discounts`) and the server-side discount checks still exist but are unused. The five seeded categories stay as they are, and the menu form still lists them. To add a new category, insert it in the Supabase SQL Editor.
