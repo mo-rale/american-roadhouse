@@ -8,6 +8,7 @@ The site stays static. Customers use `order.html`; staff use `<random-name>.html
 2. SQL Editor → run `supabase/migrations/0001_ordering.sql` (once, on a fresh project).
 2b. Run `supabase/migrations/0002_inquiries.sql` too. It adds the `inquiries` table so booking, table-reservation and contact forms also appear in the staff dashboard's **Inquiries** tab (the email via the form service still goes out as before). Visitors can only submit through `submit_inquiry()`; only staff can read them.
 2c. Run `supabase/migrations/0003_menu_images.sql`. It creates the public `menu-images` storage bucket so staff can upload photos for menu items and rooms from the dashboard (JPG, PNG or WebP, resized in the browser, 3 MB cap). Only active staff can add, replace or remove files.
+2d. Run `supabase/migrations/0004_realtime_more.sql`, `0005_rooms_public_status.sql` and `0006_restaurant_page.sql` (in that order). The last one creates the sections and dishes behind the Restaurant page's **Main** tab, seeded with what the page showed before, so staff can edit them in the dashboard's **Restaurant** and **Page sections** tabs.
 3. Then run `supabase/seed.sql` for the starter categories, priced menu items and room rates taken from the current site. Items that are "ask for today's price" are not seeded; add them in the dashboard.
 
 Or with the CLI: `supabase link --project-ref <ref>` then `supabase db push`.
@@ -41,6 +42,7 @@ select id, email, 'admin' from auth.users where email = 'owner@example.com';
 |---|---|---|
 | View and update order status | yes | yes |
 | Add / edit / delete / hide / mark unavailable menu items, edit food prices and photos | yes | yes |
+| Edit the Restaurant page: dishes (name, section, description, optional price, photo, visibility) and the section headings | yes | yes |
 | Reopen a completed or cancelled order | no | yes |
 | Room rates (including prices) | view only | full |
 | Price history (audit trail) | view | view |

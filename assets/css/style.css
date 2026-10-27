@@ -833,3 +833,29 @@ footer a:hover{ color: var(--brass); }
   background:#DDD7CB; border-color:#DDD7CB; color:#7A7367; box-shadow:none; cursor:not-allowed; transform:none;
 }
 .btn.is-unavailable::after{ display:none; }
+
+/* ---- Restaurant page: Main / Roof Deck tabs and category highlights ---- */
+.dining-tabs{ gap:0; margin-bottom:30px; }
+.dining-tabs .tab-btn{ display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:3px; padding:14px 4px 16px; margin-right:40px; }
+.tab-sub{ font-family:'Inter',Arial,sans-serif; font-size:11.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#8a8378; }
+.tab-btn.active .tab-sub{ color:var(--wood); }
+.dining-tabs .tab-btn:focus-visible{ outline:2px solid var(--brass); outline-offset:3px; }
+
+.dining-rail{ list-style:none; margin:0 0 38px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+.dining-rail a{ display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid var(--line); border-radius:999px;
+  font-size:13.5px; font-weight:600; color:var(--text); background:var(--white); transition:border-color .2s ease, background .2s ease; }
+.dining-rail a:hover, .dining-rail a:focus-visible{ border-color:var(--brass); background:var(--linen); }
+.dining-num{ font-family:'Inter',Arial,sans-serif; font-size:11.5px; font-weight:700; letter-spacing:.12em; color:var(--wood); font-variant-numeric:lining-nums tabular-nums; }
+
+.dining-cat{ margin-bottom:34px; scroll-margin-top:96px; }
+.dining-cat-head{ display:flex; align-items:baseline; gap:14px; padding-bottom:12px; border-bottom:1px solid var(--ink); }
+.dining-cat-head h3{ font-size:26px; font-weight:500; }
+.dining-cat .menu-item:last-child{ border-bottom:0; }
+.dining-empty{ margin:0; padding:16px 0 2px; color:#8a8378; font-size:14.5px; }
+
+@media (max-width:560px){
+  .dining-tabs{ border-bottom:1px solid var(--line); }
+  .dining-tabs .tab-btn{ flex:1; margin-right:14px; }
+  .dining-tabs .tab-btn:last-child{ margin-right:0; }
+  .dining-cat-head h3{ font-size:23px; }
+}

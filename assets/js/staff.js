@@ -6,7 +6,7 @@ import {
 } from './shop-common.js';
 
 const $ = (id) => document.getElementById(id);
-const S = { profile: null, tab: 'orders', orderFilter: 'active', fresh: new Set(), channel: null, categories: [] };
+const S = { profile: null, tab: 'orders', orderFilter: 'active', fresh: new Set(), channel: null, categories: [], sections: [] };
 S.rng = { orders: {}, inquiries: {}, history: {} };
 const RANGE_RELOAD = { orders: () => loadOrders(), inquiries: () => loadInquiries(), history: () => loadHistory() };
 const RANGE_RENDER = { orders: () => renderOrders(), inquiries: () => renderInquiries(), history: () => renderHistory() };
@@ -78,6 +78,38 @@ const RES = {
       { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
       { key: 'is_visible', label: 'Visible to customers', type: 'checkbox', def: true },
       { key: 'is_available', label: 'Available to order', type: 'checkbox', def: true },
+    ],
+  },
+  restaurant: {
+    label: 'Restaurant page', noun: 'dish', table: 'restaurant_dishes', select: '*, restaurant_sections(name)', admin: false,
+    order: ['sort_order', 'name'],
+    note: 'These dishes appear on the Restaurant page, under the Main tab, grouped by section. The Roof Deck tab shows the Roofdeck Grill items from the Menu tab.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Name', (r) => esc(r.name)],
+      ['Section', (r) => esc(r.restaurant_sections?.name || '—')],
+      ['Price', (r) => (r.price != null ? `<span class="price" data-pricecell>${peso(r.price)}</span>` : '<span class="badge">Ask for price</span>')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Visible' }],
+    fields: [
+      { key: 'name', label: 'Name', type: 'text', required: true, max: 120 },
+      { key: 'section_id', label: 'Section', type: 'select', required: true, options: () => S.sections.map((c) => [c.id, c.name]) },
+      { key: 'price', label: 'Price (PHP, optional)', type: 'priceopt', hint: 'Leave empty to show "Ask for today\'s price".' },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
+      { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
+      { key: 'is_visible', label: 'Visible on the page', type: 'checkbox', def: true },
+    ],
+  },
+  rsections: {
+    label: 'Page sections', noun: 'section', table: 'restaurant_sections', select: '*', admin: false, order: ['sort_order', 'name'],
+    note: 'The headings on the Restaurant page\'s Main tab, in the order shown. A section cannot be deleted while it still has dishes; hide it instead.',
+    columns: [['Section', (r) => esc(r.name)], ['Order', (r) => String(r.sort_order)]],
+    toggles: [{ key: 'is_visible', label: 'Visible' }],
+    fields: [
+      { key: 'name', label: 'Section name', type: 'text', required: true, max: 60 },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'is_visible', label: 'Visible on the page', type: 'checkbox', def: true },
     ],
   },
   rooms: {
@@ -158,7 +190,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['restaurant', 'Restaurant'], ['rsections', 'Page sections'], ['rooms', 'Room rates'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -337,6 +369,7 @@ const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
   menu_items: 'menu', categories: 'menu', room_rates: 'rooms', price_history: 'history',
+  restaurant_dishes: 'restaurant', restaurant_sections: 'rsections',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -350,7 +383,7 @@ function refreshTab(tab = S.tab) {
 
 // A change made by anyone else (another staff member, a customer) refreshes the tab being viewed.
 const liveRefresh = debounce((table) => {
-  const wants = TAB_FOR_TABLE[table] === S.tab;
+  const wants = TAB_FOR_TABLE[table] === S.tab || (table === 'restaurant_sections' && S.tab === 'restaurant');
   if (wants && !isEditing()) refreshTab();
 }, 300);
 
@@ -570,6 +603,7 @@ async function loadResource(key) {
   const cfg = RES[key];
   try {
     if (key === 'menu') await ensureCategories();
+    if (key === 'restaurant') await ensureSections();
     let q = supabase.from(cfg.table).select(cfg.select);
     cfg.order.forEach((c) => (q = q.order(c)));
     const { data, error } = await q;
@@ -586,6 +620,12 @@ async function ensureCategories() {
   S.categories = data;
 }
 
+async function ensureSections() {
+  const { data, error } = await supabase.from('restaurant_sections').select('id, name').order('sort_order').order('name');
+  if (error) throw error;
+  S.sections = data;
+}
+
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
 
 function renderResource(key) {
@@ -595,13 +635,14 @@ function renderResource(key) {
     $('st-panel').innerHTML = `<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${key === 'menu' ? `<select id="r-cat" class="st-select" aria-label="Filter by category"><option value="">All categories</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
+        ${(key === 'menu' || key === 'restaurant') ? `<select id="r-cat" class="st-select" aria-label="Filter by ${key === 'menu' ? 'category' : 'section'}"><option value="">All ${key === 'menu' ? 'categories' : 'sections'}</option>${(key === 'menu' ? S.categories : S.sections).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : ''}
         ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
+      ${cfg.note ? `<p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">${esc(cfg.note)}</p>` : ''}
       <div id="r-body"></div>`;
   }
   const q = (S.rq || '').toLowerCase().trim();
-  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || r.category_id === S.rcat));
+  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || (r.category_id ?? r.section_id) === S.rcat));
   const body = $('r-body');
   if (!currentRows.length) {
     body.innerHTML = `<div class="empty"><strong>No ${esc(cfg.noun)}s yet</strong>${canWrite ? `Use “Add ${esc(cfg.noun)}” to create the first one.` : ''}</div>`;
@@ -656,7 +697,7 @@ function fieldHtml(f, row) {
   if (f.type === 'textarea') input = `<textarea id="${id}" name="${f.key}" rows="3" maxlength="${f.max || 500}">${esc(v ?? '')}</textarea>`;
   else if (f.type === 'select') input = `<select id="${id}" name="${f.key}"><option value="">Select…</option>${f.options().map(([val, lab]) => `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
   else if (f.type === 'datetime') input = `<input type="datetime-local" id="${id}" name="${f.key}" value="${esc(toLocalInput(v))}">`;
-  else if (f.type === 'price' || f.type === 'money0') input = `<input type="text" inputmode="decimal" id="${id}" name="${f.key}" value="${esc(v ?? '')}" autocomplete="off">`;
+  else if (f.type === 'price' || f.type === 'priceopt' || f.type === 'money0') input = `<input type="text" inputmode="decimal" id="${id}" name="${f.key}" value="${esc(v ?? '')}" autocomplete="off">`;
   else if (f.type === 'int') input = `<input type="number" step="1" id="${id}" name="${f.key}" value="${esc(v ?? 0)}">`;
   else input = `<input type="text" id="${id}" name="${f.key}" value="${esc(v ?? '')}" maxlength="${f.max || 200}" autocomplete="off">`;
   return `<div class="${cls}"><label for="${id}">${esc(f.label.toUpperCase())}</label>${input}${hint}${err}</div>`;
@@ -685,6 +726,10 @@ function collect(cfg, form) {
     let v = f.type === 'checkbox' ? el.checked : el.value.trim();
     let bad = null;
     if (f.type === 'checkbox') { /* ok */ }
+    else if (f.type === 'priceopt') {
+      if (v === '') v = null;
+      else { const r = parsePrice(v); if (r.ok) v = r.value; else bad = r.message; }
+    }
     else if (f.type === 'price') {
       const r = parsePrice(v);
       if (r.ok) v = r.value; else bad = r.message;
@@ -778,7 +823,7 @@ async function deleteRow(key, id) {
   loadResource(key);
 }
 
-const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night' };
+const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night', restaurant_dishes: 'price' };
 
 function quickPrice(id, cell) {
   const row = currentRows.find((r) => r.id === id);
@@ -807,7 +852,7 @@ async function saveQuickPrice(form) {
 }
 
 /* ---------- price history ---------- */
-const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate' };
+const TABLE_LABEL = { menu_items: 'Menu item', room_rates: 'Room rate', restaurant_dishes: 'Restaurant dish' };
 let histRows = [];
 
 async function loadHistory() {
