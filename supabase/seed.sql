@@ -2,12 +2,12 @@
 -- Items that are "ask for today's price" on the site are intentionally not seeded:
 -- add them from the staff dashboard once real prices are confirmed.
 
-insert into public.categories (name, slug, sort_order) values
-  ('Roofdeck Grill', 'roofdeck-grill', 1),
-  ('Main Dishes',    'main-dishes',    2),
-  ('Snacks',         'snacks',         3),
-  ('Breakfast',      'breakfast',      4),
-  ('Lemon Drinks',   'lemon-drinks',   5);
+-- Run this after all migrations (0001 to 0008). The Main sections (Appetizer, Salad, ...) and their dishes are
+-- created by migrations 0006 and 0008; this file adds the Roof Deck sections, priced items and room rates.
+insert into public.categories (name, slug, sort_order, venue) values
+  ('Roofdeck Grill', 'roofdeck-grill', 1, 'roofdeck'),
+  ('Lemon Drinks',   'lemon-drinks',   2, 'roofdeck')
+on conflict (slug) do update set venue = excluded.venue, sort_order = excluded.sort_order;
 
 insert into public.menu_items (category_id, name, description, price, image_url, sort_order)
 select c.id, v.name, v.description, v.price, v.image_url, v.sort_order

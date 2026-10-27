@@ -8,7 +8,7 @@ The site stays static. Customers use `order.html`; staff use `<random-name>.html
 2. SQL Editor → run `supabase/migrations/0001_ordering.sql` (once, on a fresh project).
 2b. Run `supabase/migrations/0002_inquiries.sql` too. It adds the `inquiries` table so booking, table-reservation and contact forms also appear in the staff dashboard's **Inquiries** tab (the email via the form service still goes out as before). Visitors can only submit through `submit_inquiry()`; only staff can read them.
 2c. Run `supabase/migrations/0003_menu_images.sql`. It creates the public `menu-images` storage bucket so staff can upload photos for menu items and rooms from the dashboard (JPG, PNG or WebP, resized in the browser, 3 MB cap). Only active staff can add, replace or remove files.
-2d. Run `supabase/migrations/0004_realtime_more.sql`, `0005_rooms_public_status.sql`, `0006_restaurant_page.sql` and `0007_order_restaurant_dishes.sql` (in that order). The last one lets customers order Restaurant-page dishes (Main tab) once staff give them a price; the ordering page mirrors the Restaurant page, with Main and Roof Deck tabs. The last one creates the sections and dishes behind the Restaurant page's **Main** tab, seeded with what the page showed before, so staff can edit them in the dashboard's **Restaurant** and **Page sections** tabs.
+2d. Run `supabase/migrations/0004_realtime_more.sql`, `0005_rooms_public_status.sql`, `0006_restaurant_page.sql`, `0007_order_restaurant_dishes.sql` and `0008_unified_menu_and_stock.sql` (in that order). 0006 and 0007 were the first version of the editable Restaurant page; **0008 merges that into one menu** (Main and Roof Deck sections, optional prices) and adds stock tracking. See "One menu, two venues, and stock" below.
 3. Then run `supabase/seed.sql` for the starter categories, priced menu items and room rates taken from the current site. Items that are "ask for today's price" are not seeded; add them in the dashboard.
 
 Or with the CLI: `supabase link --project-ref <ref>` then `supabase db push`.
@@ -42,7 +42,7 @@ select id, email, 'admin' from auth.users where email = 'owner@example.com';
 |---|---|---|
 | View and update order status | yes | yes |
 | Add / edit / delete / hide / mark unavailable menu items, edit food prices and photos | yes | yes |
-| Edit the Restaurant page: dishes (name, section, description, optional price, photo, visibility) and the section headings | yes | yes |
+| Edit the one menu behind the Restaurant and ordering pages: items (name, section, description, optional price, photo, visibility, availability, stock) and the menu sections | yes | yes |
 | Reopen a completed or cancelled order | no | yes |
 | Room rates (including prices) | view only | full |
 | Price history (audit trail) | view | view |
@@ -105,4 +105,11 @@ The dashboard is deliberately not at `/staff.html`. It is a randomly named file 
 
 ## Not in the dashboard
 
-Categories, add-ons and discounts have no dashboard screens, and the ordering page has no discount-code box. The database tables (`categories`, `addons`, `discounts`) and the server-side discount checks still exist but are unused. The five seeded categories stay as they are, and the menu form still lists them. To add a new category, insert it in the Supabase SQL Editor.
+Add-ons and discounts have no dashboard screens, and the ordering page has no discount-code box. The database tables (`addons`, `discounts`) and the server-side discount checks still exist but are unused.
+
+## One menu, two venues, and stock
+
+`0008_unified_menu_and_stock.sql` merged the Restaurant page's own dishes into the ordering menu, so there is a single list. Staff edit it in the dashboard's **Menu** tab and group it in **Menu sections**. Each section belongs to a venue (**Main** or **Roof Deck**), and an item shows under the venue of its section on both the Restaurant page and the ordering page.
+
+- **Price is optional.** An item without a price is listed as "Ask for today's price" and cannot be ordered online until it has one.
+- **Stock is optional.** Leave it empty to not track an item. When set, every order subtracts from it (the database locks the item so two customers cannot take the last portion), an item at 0 shows as sold out, customers see "Only N left" at 5 or fewer, and cancelling an order puts its portions back (reopening a cancelled order takes them out again). Click the stock figure in the Menu tab to change it quickly; the "Low or out" filter lists items at 5 or fewer.
