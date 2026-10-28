@@ -3,6 +3,8 @@
   "buildCommand": "node scripts/build-env.mjs",
   "outputDirectory": ".",
   "redirects": [
-    { "source": "/menu.html", "destination": "/restaurant.html", "permanent": true }
+    { "source": "/menu.html", "destination": "/restaurant.html", "permanent": true },
+    { "source": "/about.html", "destination": "/contact.html#about", "permanent": true },
+    { "source": "/location.html", "destination": "/contact.html#location", "permanent": true }
   ]
 }

@@ -8,8 +8,7 @@ Responsive static website for American Roadhouse in Guindulman, Bohol. It uses H
 - `rooms.html` — room types and rates
 - `restaurant.html` — dining and the full menu (Main and Roof Deck tabs, menu boards); the old `menu.html` now redirects here
 - `gallery.html` — photo gallery and lightbox
-- `about.html` and `location.html` — business information and directions
-- `contact.html` — room, table, and general inquiry forms
+- `contact.html` — one page for About, Location and Contact (room, table, and general inquiry forms); the old `about.html` and `location.html` redirect to its sections
 - `booking.html` — standalone booking inquiry page
 - `order.html` — online food ordering (Supabase)
 - `<random-name>.html` — staff dashboard: live orders, menu, prices, audit trail (Supabase auth, noindex)

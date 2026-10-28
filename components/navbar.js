@@ -9,10 +9,9 @@ window.AmericanRoadhouseNavbar = String.raw`<nav id="site-nav" aria-label="Prima
       <a href="rooms.html">Rooms</a>
       <a href="restaurant.html">Restaurant</a>
       <a href="order.html">Order</a>
-      <a href="gallery.html">Gallery</a>
-      <a href="about.html">About</a>
-      <a href="location.html">Location</a>
-      <a href="contact.html">Contact</a>
+      <a href="services.html">Services</a>
+  <a href="gallery.html">Gallery</a>
+      <a href="contact.html">About &amp; Contact</a>
     </div>
     <div style="display:flex;align-items:center;gap:14px;">
       <a href="contact.html?tab=booking#forms" class="btn btn-brass nav-cta btn-sm">Book Now</a>
@@ -30,10 +29,9 @@ window.AmericanRoadhouseNavbar = String.raw`<nav id="site-nav" aria-label="Prima
   <a href="rooms.html">Rooms</a>
   <a href="restaurant.html">Restaurant</a>
   <a href="order.html">Order</a>
+  <a href="services.html">Services</a>
   <a href="gallery.html">Gallery</a>
-  <a href="about.html">About</a>
-  <a href="location.html">Location</a>
-  <a href="contact.html">Contact</a>
+  <a href="contact.html">About &amp; Contact</a>
   <a href="contact.html?tab=booking#forms" class="btn btn-brass mm-cta">Book Now</a>
   <a href="tel:+639158754860" class="mm-phone">Call 0915 875 4860</a>
 </div>
