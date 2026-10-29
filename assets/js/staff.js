@@ -114,6 +114,26 @@ const RES = {
       payload.slug = slug;
     },
   },
+  massage: {
+    label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
+    note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
+    columns: [
+      ['Massage', (r) => esc(r.name)],
+      ['Duration', (r) => esc(r.duration_minutes ? `${r.duration_minutes} min` : r.duration_label || '—')],
+      ['Price', (r) => (r.price != null ? `<span class="price" data-pricecell>${peso(r.price)}</span> <span class="muted">${esc(r.price_unit || '')}</span>` : '<span class="badge">Ask for price</span>')],
+    ],
+    toggles: [{ key: 'is_active', label: 'Shown' }],
+    fields: [
+      { key: 'name', label: 'Type of massage', type: 'text', required: true, max: 120 },
+      { key: 'price', label: 'Price (PHP, optional)', type: 'priceopt', hint: 'Leave empty to show "Ask for price".' },
+      { key: 'price_unit', label: 'Price unit (optional)', type: 'text', max: 40, hint: 'Shown under the price, for example "per 30 minutes".' },
+      { key: 'duration_minutes', label: 'Duration (minutes, optional)', type: 'stockopt', hint: 'A fixed length, for example 30.' },
+      { key: 'duration_label', label: 'Duration text (optional)', type: 'text', max: 40, hint: 'Used when there is no fixed length, for example "Duration varies".' },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'description', label: 'Description', type: 'textarea', max: 500, span2: true },
+      { key: 'is_active', label: 'Shown on the Services page', type: 'checkbox', def: true },
+    ],
+  },
   rooms: {
     label: 'Room rates', noun: 'room rate', table: 'room_rates', select: '*', admin: true, order: ['sort_order', 'name'],
     columns: [['Room', (r) => esc(r.name)], ['Per night', (r) => `<span class="price" data-pricecell>${peso(r.price_per_night)}</span>`]],
@@ -192,7 +212,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['sections', 'Menu sections'], ['rooms', 'Room rates'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -208,18 +228,19 @@ function startApp() {
   subscribeOrders();
   showTab(S.tab);
   if (S.tab !== 'orders') loadOrders();
-  if (S.tab !== 'inquiries') loadInquiries();
+  if (!isInqTab()) loadInquiries();
 }
 
 function showTab(tab) {
   S.tab = tab;
   S.rng = { orders: {}, inquiries: {}, history: {} };
+  S.isub = S.isub || 'booking';
   S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
-  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'sections' ? 'menu' : tab))));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
   if (tab === 'orders') return loadOrders();
-  if (tab === 'inquiries') return loadInquiries();
+  if (isInqTab(tab)) return loadInquiries();
   if (tab === 'history') return loadHistory();
   if (tab === 'staff') return loadStaff();
   return loadResource(tab);
@@ -303,7 +324,7 @@ function renderOrders() {
           <input type="search" id="o-search" class="st-search" placeholder="Search # or name" aria-label="Search orders" value="${esc(S.orderSearch || '')}">
           <button type="button" class="btn-xs" id="sound-btn" data-sound="1"></button>
           <span class="live-dot" id="live"></span></div></div>
-      <div id="rng-orders">${rangeBar('orders')}</div>
+      <div id="rng-orders">${rangeBar('orders')}</div>${purgeBar('orders')}
       <div id="o-body"></div>`;
   }
   const counts = {};
@@ -370,13 +391,13 @@ async function cancelOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', price_history: 'history',
+  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
 function refreshTab(tab = S.tab) {
   if (tab === 'orders') return loadOrders();
-  if (tab === 'inquiries') return loadInquiries();
+  if (isInqTab(tab)) return loadInquiries();
   if (tab === 'history') return loadHistory();
   if (tab === 'staff') return loadStaff();
   return loadResource(tab);
@@ -425,7 +446,7 @@ async function subscribeOrders() {
   if (!S.poll) {
     S.poll = setInterval(() => {
       if (document.hidden || isEditing()) return;
-      if (S.tab === 'orders' || S.tab === 'inquiries' || (Date.now() - (S.lastPoll || 0)) > 55000) {
+      if (S.tab === 'orders' || isInqTab() || (Date.now() - (S.lastPoll || 0)) > 55000) {
         S.lastPoll = Date.now();
         refreshTab();
       }
@@ -452,11 +473,14 @@ function confirmDialog(title, message, label = 'Confirm', danger = true) {
 }
 
 /* ---------- inquiries (room bookings, table reservations, messages) ---------- */
-const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message' };
+const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message', massage: 'Massage' };
+const isInqTab = (t = S.tab) => t === 'inquiries';
+// inside Inquiries: the Massage sub-tab shows massage requests, Booking shows everything else
+const inqScope = () => inquiries.filter((i) => (S.isub === 'massage') === (i.kind === 'massage'));
 const INQ_STATUS = { new: 'New', contacted: 'Contacted', closed: 'Closed' };
 const DETAIL_LABEL = {
   check_in: 'Check-in', check_out: 'Check-out', guests: 'Guests', room_preference: 'Room',
-  date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
+  massage_type: 'Massage', date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
 };
 let inquiries = [];
 S.ifilter = 'new';
@@ -467,15 +491,28 @@ async function loadInquiries() {
     if (error) throw error;
     inquiries = data;
     updateInquiryBadge();
-    if (S.tab === 'inquiries') renderInquiries();
-  } catch (err) { if (S.tab === 'inquiries') panelError(err, loadInquiries); }
+    if (isInqTab()) renderInquiries();
+  } catch (err) { if (isInqTab()) panelError(err, loadInquiries); }
 }
 
 async function updateInquiryBadge() {
-  const { count } = await supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new');
-  const n = count || 0;
+  const base = () => supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new');
+  const [other, massage] = await Promise.all([base().neq('kind', 'massage'), base().eq('kind', 'massage')]);
+  S.newInq = { booking: other.count || 0, massage: massage.count || 0 };
+  const n = S.newInq.booking + S.newInq.massage;
   const tab = document.querySelector('#st-tabs [data-tab="inquiries"]');
   if (tab) tab.innerHTML = `Inquiries${n ? ` <span class="tab-badge" aria-label="${n} new">${n}</span>` : ''}`;
+  renderInqSubtabs();
+}
+
+const INQ_SUB = [['booking', 'Booking'], ['massage', 'Massage']];
+function renderInqSubtabs() {
+  const el = $('i-sub');
+  if (!el) return;
+  el.innerHTML = INQ_SUB.map(([k, l]) => {
+    const n = S.newInq?.[k] || 0;
+    return `<button type="button" role="tab" data-isub="${k}" aria-selected="${k === S.isub}">${l}${n ? ` <span class="tab-badge" aria-label="${n} new">${n}</span>` : ''}</button>`;
+  }).join('');
 }
 
 function inquiryCard(i) {
@@ -494,22 +531,25 @@ function inquiryCard(i) {
 
 function renderInquiries() {
   if (!$('i-body')) {
-    $('st-panel').innerHTML = `<div class="st-toolbar"><div class="chips" id="i-chips" role="group" aria-label="Filter inquiries"></div>
+    $('st-panel').innerHTML = `<div class="subtabs" id="i-sub" role="tablist" aria-label="Inquiry type"></div>
+      <div class="st-toolbar"><div class="chips" id="i-chips" role="group" aria-label="Filter inquiries"></div>
       <div class="tool-right"><input type="search" id="i-search" class="st-search" placeholder="Search name or phone" aria-label="Search inquiries" value="${esc(S.iq || '')}"></div></div>
-      <div id="rng-inquiries">${rangeBar('inquiries')}</div>
+      <div id="rng-inquiries">${rangeBar('inquiries')}</div>${purgeBar('inquiries')}
       <div id="i-body"></div>`;
   }
+  renderInqSubtabs();
   const counts = {};
-  inquiries.forEach((i) => { counts[i.status] = (counts[i.status] || 0) + 1; });
+  const scoped = inqScope();
+  scoped.forEach((i) => { counts[i.status] = (counts[i.status] || 0) + 1; });
   $('i-chips').innerHTML = [...Object.entries(INQ_STATUS), ['all', 'All']].map(([k, l]) =>
-    `<button type="button" data-ifilter="${k}" aria-pressed="${k === S.ifilter}">${l} <span class="chip-n">${k === 'all' ? inquiries.length : counts[k] || 0}</span></button>`).join('');
+    `<button type="button" data-ifilter="${k}" aria-pressed="${k === S.ifilter}">${l} <span class="chip-n">${k === 'all' ? scoped.length : counts[k] || 0}</span></button>`).join('');
   const q = (S.iq || '').toLowerCase().trim();
-  const list = sortRows(inquiries.filter((i) => (S.ifilter === 'all' || i.status === S.ifilter) &&
+  const list = sortRows(scoped.filter((i) => (S.ifilter === 'all' || i.status === S.ifilter) &&
     (!q || i.full_name.toLowerCase().includes(q) || i.phone.includes(q) || (i.email || '').toLowerCase().includes(q))),
   'inquiries', 'created_at', 'desc');
   $('i-body').innerHTML = list.length
     ? `<div class="order-grid">${list.map(inquiryCard).join('')}</div>`
-    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
+    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : S.isub === 'massage' ? 'Massage requests from the Services page will appear here automatically.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
   S.fresh.clear();
 }
 
@@ -527,6 +567,33 @@ async function deleteInquiry(id) {
   const { error } = await supabase.from('inquiries').delete().eq('id', id);
   if (error) toast(friendlyError(error), 'error'); else toast('Deleted.');
   loadInquiries();
+}
+
+/* ---------- admin: delete old records ---------- */
+const PURGE_LABEL = {
+  orders: ['completed and cancelled orders', 'orders'],
+  inquiries: ['closed inquiries', 'inquiries'],
+  history: ['price-history entries', 'history'],
+};
+const purgeBar = (kind) => isAdmin()
+  ? `<div class="purge-row"><span>Clean up</span>
+      <select data-purge-days="${kind}" aria-label="Delete records older than">
+        ${[[30, '30 days'], [90, '3 months'], [180, '6 months'], [365, '1 year']].map(([v, l]) => `<option value="${v}">older than ${l}</option>`).join('')}
+      </select>
+      <button type="button" class="btn-xs danger" data-purge="${kind}">Delete old ${PURGE_LABEL[kind][0]}</button></div>`
+  : '';
+
+async function purgeOld(kind) {
+  const days = Number(document.querySelector(`[data-purge-days="${kind}"]`)?.value || 90);
+  const [what] = PURGE_LABEL[kind];
+  const { data: n, error } = await supabase.rpc('admin_purge_old', { p_kind: kind, p_older_than_days: days, p_dry_run: true });
+  if (error) { toast(friendlyError(error), 'error'); return; }
+  if (!n) { toast(`No ${what} older than ${days} days.`); return; }
+  const ok = await confirmDialog(`Delete ${n} ${what}?`, `Everything of this kind older than ${days} days will be removed for good. This cannot be undone.`, `Delete ${n}`);
+  if (!ok) return;
+  const res = await supabase.rpc('admin_purge_old', { p_kind: kind, p_older_than_days: days, p_dry_run: false });
+  if (res.error) toast(friendlyError(res.error), 'error'); else toast(`Deleted ${res.data} ${what}.`);
+  RANGE_RELOAD[PURGE_LABEL[kind][1]]();
 }
 
 const refreshInquiries = debounce(() => loadInquiries(), 250);
@@ -622,11 +689,16 @@ async function ensureCategories() {
 
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
 
+const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections']];
+const menuSubtabs = (key) => (key === 'menu' || key === 'sections'
+  ? `<div class="subtabs" role="tablist" aria-label="Menu">${MENU_SUB.map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
+  : '');
+
 function renderResource(key) {
   const cfg = RES[key];
   const canWrite = !cfg.admin || isAdmin();
   if (!$('r-body')) {
-    $('st-panel').innerHTML = `<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
+    $('st-panel').innerHTML = `${menuSubtabs(key)}<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
         ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
@@ -832,7 +904,7 @@ async function deleteRow(key, id) {
   loadResource(key);
 }
 
-const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night' };
+const PRICE_FIELD = { menu_items: 'price', room_rates: 'price_per_night', massage_services: 'price' };
 
 function quickPrice(id, cell) {
   const row = currentRows.find((r) => r.id === id);
@@ -913,7 +985,7 @@ function renderHistory() {
   if (!$('h-body')) {
     $('st-panel').innerHTML = `<div class="st-toolbar"><div class="chips" id="h-chips" role="group" aria-label="Filter by type"></div>
       <div class="tool-right"><input type="search" id="h-search" class="st-search" placeholder="Search item or person" aria-label="Search price history" value="${esc(S.hq || '')}"></div></div>
-      <div id="rng-history">${rangeBar('history')}</div>
+      <div id="rng-history">${rangeBar('history')}</div>${purgeBar('history')}
       <div id="h-body"></div>`;
   }
   $('h-chips').innerHTML = [['all', 'All'], ...Object.entries(TABLE_LABEL)]
@@ -1111,8 +1183,11 @@ function init() {
     }
     else if (t.dataset.ofilter) { S.orderFilter = t.dataset.ofilter; renderOrders(); }
     else if (t.dataset.ifilter) { S.ifilter = t.dataset.ifilter; renderInquiries(); }
+    else if (t.dataset.rsub) showTab(t.dataset.rsub);
+    else if (t.dataset.isub) { S.isub = t.dataset.isub; S.ifilter = 'all'; renderInquiries(); }
     else if (t.dataset.istatus) setInquiryStatus(t.dataset.id, t.dataset.istatus);
     else if (t.dataset.idelete) deleteInquiry(t.dataset.idelete);
+    else if (t.dataset.purge) purgeOld(t.dataset.purge);
     else if (t.dataset.hfilter) { S.hf = t.dataset.hfilter; S.hlimit = 30; renderHistory(); }
     else if (t.dataset.hmore) { S.hlimit += 30; renderHistory(); }
     else if (t.dataset.status) setStatus(t.dataset.id, t.dataset.status);

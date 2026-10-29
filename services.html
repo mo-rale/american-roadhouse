@@ -79,11 +79,11 @@
         <p style="color:#6b6357;font-size:14px;margin-bottom:14px;">Open daily, 10AM&ndash;10PM: an open-air bar with views over the rice fields.</p>
         <a href="restaurant.html?tab=roofdeck" style="color:var(--wood);font-weight:600;font-size:14px;">Roof Deck Menu &rarr;</a>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-open-massage="1" style="cursor:pointer;">
         <img src="assets/venue/massage.jpg" alt="Massage service at American Roadhouse" loading="lazy" style="width:100%;height:150px;object-fit:cover;border-radius:8px;margin-bottom:16px;">
         <h3 style="font-size:18px;margin-bottom:8px;">Massage</h3>
-        <p style="color:#6b6357;font-size:14px;margin-bottom:14px;">Relax and unwind with a massage during your stay. Ask us about availability.</p>
-        <a href="contact.html?tab=message#forms" style="color:var(--wood);font-weight:600;font-size:14px;">Ask About Massage &rarr;</a>
+        <p style="color:#6b6357;font-size:14px;margin-bottom:14px;">Relax and unwind with a massage during your stay. See the types and prices.</p>
+        <a href="#massage" data-open-massage="1" style="color:var(--wood);font-weight:600;font-size:14px;">View Types &amp; Prices &rarr;</a>
       </div>
       <div class="feature-card">
         <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
@@ -101,13 +101,57 @@
   </div>
 </section>
 
-<section class="final-cta">
+<section class="final-cta cta-fade">
   <div class="container">
     <h2>Ready to Book?</h2>
     <p>Send a booking request or call us at 0915 875 4860.</p>
     <a href="contact.html?tab=booking#forms" class="btn btn-brass">Book Your Stay</a>
   </div>
 </section>
+
+<dialog id="massage-dlg" class="massage-dlg" aria-labelledby="massage-title">
+  <div class="massage-head">
+    <img src="assets/venue/massage.jpg" alt="">
+    <button type="button" class="massage-x" data-close="1" aria-label="Close">&times;</button>
+  </div>
+  <h3 id="massage-title">Massage</h3>
+
+  <div id="massage-menu">
+    <p class="massage-sub">Types and prices</p>
+    <ul class="massage-list" id="massage-list"></ul>
+    <div class="massage-foot">
+      <button type="button" class="btn btn-brass btn-sm" data-show="form">Request a Massage</button>
+      <button type="button" class="btn btn-outline btn-sm" data-close="1">Close</button>
+    </div>
+  </div>
+
+  <div id="massage-formview" hidden>
+    <p class="massage-sub">Tell us what you would like and we will confirm by phone.</p>
+    <form id="massage-form" class="massage-form" novalidate>
+      <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;">
+      <label>Your name<input type="text" name="full_name" maxlength="80" autocomplete="name" required></label>
+      <label>Phone number<input type="tel" name="phone" maxlength="24" autocomplete="tel" placeholder="09XX XXX XXXX" required></label>
+      <label>Email <em>(optional)</em><input type="email" name="email" maxlength="120" autocomplete="email"></label>
+      <label>Type of massage<select name="massage_type" id="mf-type"><option value="">No preference / not sure yet</option></select></label>
+      <div class="massage-form-row">
+        <label>Preferred date<input type="date" name="date"></label>
+        <label>Preferred time<input type="time" name="time"></label>
+      </div>
+      <label>Number of people<select name="guests"><option>1</option><option>2</option><option>3</option><option>4</option><option>5 or more</option></select></label>
+      <label>Notes <em>(optional)</em><textarea name="notes" rows="3" maxlength="500" placeholder="Anything we should know, such as areas to focus on or allergies."></textarea></label>
+      <div class="form-error massage-err" id="mf-error" role="alert"></div>
+      <div class="massage-foot" style="padding:6px 0 0;">
+        <button type="submit" class="btn btn-brass btn-sm">Send Request</button>
+        <button type="button" class="btn btn-outline btn-sm" data-show="menu">Back to prices</button>
+      </div>
+    </form>
+    <div id="mf-ok" class="massage-ok" hidden>
+      <strong>Thank you, your request was sent.</strong>
+      <p>We will contact you to confirm your massage.</p>
+      <div class="massage-foot" style="padding:6px 0 0;"><button type="button" class="btn btn-outline btn-sm" data-close="1">Close</button></div>
+    </div>
+  </div>
+</dialog>
 
 <footer>
   <div class="container">
@@ -138,6 +182,8 @@
   </div>
 </footer>
 <script src="components/navbar.js"></script>
+<script src="assets/js/env.js" onerror="void 0"></script>
 <script src="assets/js/main.js"></script>
+<script type="module" src="assets/js/massage.js"></script>
 </body>
 </html>

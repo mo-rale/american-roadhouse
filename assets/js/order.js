@@ -262,7 +262,6 @@ async function onSubmit(e) {
     closeCart();
     await showConfirmation(data.order_id);
     subscribeMyOrders(session.user.id);
-    loadMyOrders();
   } catch (err) {
     errBox.textContent = friendlyError(err);
     errBox.classList.add('show');
@@ -327,24 +326,8 @@ async function showConfirmation(orderId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function loadMyOrders() {
-  const box = $('my-orders');
-  try {
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess.session) return;
-    const { data, error } = await supabase.from('orders').select('id, order_number, status, total, created_at')
-      .order('created_at', { ascending: false }).limit(5);
-    if (error) throw error;
-    box.hidden = data.length === 0;
-    $('my-orders-list').innerHTML = data.map((o) => `
-      <div class="my-order"><span class="num">#${esc(o.order_number)}</span>
-        <span>${fmtDate(o.created_at)}</span><span class="price">${peso(o.total)}</span>
-        <span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span></div>`).join('');
-  } catch { box.hidden = true; }
-}
-
+// keeps the confirmation screen of the order just placed up to date
 const onMyOrderChange = debounce(async () => {
-  loadMyOrders();
   if (state.confirmId) {
     try {
       const o = await fetchOrder(state.confirmId);
@@ -436,7 +419,7 @@ async function init() {
   setInterval(() => { if (!document.hidden) refresh(); }, 60000);
 
   const { data } = await supabase.auth.getSession();
-  if (data.session) { subscribeMyOrders(data.session.user.id); loadMyOrders(); }
+  if (data.session) subscribeMyOrders(data.session.user.id);
   // Safety net for the order status shown after checkout.
   setInterval(() => { if (state.confirmId && !document.hidden) onMyOrderChange(); }, 20000);
 }

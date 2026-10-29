@@ -85,7 +85,6 @@ body.luxe .cart-fab{ border-radius:2px; text-transform:uppercase; letter-spacing
 body.luxe .confirm-card{ border-radius:2px; box-shadow:none; border:1px solid var(--lux-line); border-top:2px solid var(--brass); background:var(--lux-paper); padding:44px 28px; }
 body.luxe .confirm-card .check{ background:none; border:1px solid var(--brass); color:var(--brass); }
 body.luxe .status-steps span{ border-top-width:2px; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; }
-body.luxe .my-order{ border-radius:2px; background:var(--lux-paper); }
 body.luxe .skel{ border-radius:2px; }
 body.luxe .shop-toast{ border-radius:2px; border-left:3px solid var(--brass); }
 
@@ -161,3 +160,13 @@ body.luxe .qprice{ color:var(--text); }
 body.luxe .qprice .price{ color:var(--text); }
 body.luxe .add-staff{ border-radius:2px; border:1px solid var(--lux-line); border-top:2px solid var(--brass); background:var(--lux-paper); padding:24px; }
 body.luxe .add-staff h3{ font-size:22px; }
+
+/* admin: delete-old-records row */
+.purge-row{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0 4px; font-size:12px; color:var(--lux-label, #6b6357); }
+.purge-row span{ letter-spacing:.14em; text-transform:uppercase; font-size:10px; }
+.purge-row select{ padding:6px 10px; border:1px solid var(--lux-line, #ddd6c8); background:transparent; border-radius:6px; font:inherit; color:inherit; }
+
+/* Inquiries: Booking / Massage sub-tabs */
+.subtabs{ display:flex; gap:26px; margin:2px 0 18px; border-bottom:1px solid var(--lux-line, #ddd6c8); }
+.subtabs button{ background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px; padding:8px 2px 10px; font:inherit; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#6b6357; cursor:pointer; }
+.subtabs button[aria-selected="true"]{ color:var(--ink, #1a1612); border-bottom-color:var(--brass, #b98a4a); }
