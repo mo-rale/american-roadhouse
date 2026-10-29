@@ -1,6 +1,6 @@
 # American Roadhouse Hotel & Restaurant
 
-Responsive static website for American Roadhouse in Guindulman, Bohol. It uses HTML, CSS, and vanilla JavaScript; there is no build step or package installation.
+Responsive static website for American Roadhouse in Tugas, Candijay, Bohol. It uses HTML, CSS, and vanilla JavaScript; there is no build step or package installation.
 
 ## Pages
 

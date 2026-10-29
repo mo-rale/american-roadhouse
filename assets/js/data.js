@@ -21,7 +21,7 @@ const ROOMS = [
     category: "Rooms",
     capacity: "2 Guests",
     amenities: ["Private bathroom", "Air conditioning", "Free Wi-Fi"],
-    description: "Comfortable accommodation designed for a relaxing stay in Guindulman.",
+    description: "Comfortable accommodation designed for a relaxing stay in Tugas, Candijay.",
     price: "Contact for availability",
   },
   {
@@ -104,7 +104,7 @@ const FAQS = [
   },
   {
     q: "Where is American Roadhouse located?",
-    a: "American Roadhouse Hotel and Restaurant is located at Purok 5 Tugas, Guindulman, Bohol 6312, Philippines.",
+    a: "American Roadhouse Hotel and Restaurant is located at Purok 5 Tugas, Candijay, Bohol 6312, Philippines.",
   },
   {
     q: "How can I contact the hotel?",
