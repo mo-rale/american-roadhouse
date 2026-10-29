@@ -44,16 +44,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mobileMenu = document.getElementById('mobile-menu');
   const closeMobileMenu = () => {
     mobileMenu?.classList.remove('open');
+    document.documentElement.classList.remove('menu-lock');   // let the page scroll again
     menuBtn?.setAttribute('aria-expanded', 'false');
     menuBtn?.focus();
   };
   menuBtn?.setAttribute('aria-expanded', 'false');
   menuBtn?.addEventListener('click', () => {
     const isOpen = mobileMenu?.classList.toggle('open') || false;
+    document.documentElement.classList.toggle('menu-lock', isOpen);   // stop the page scrolling behind the menu
     menuBtn.setAttribute('aria-expanded', String(isOpen));
     if (isOpen) menuCloseBtn?.focus();
   });
   menuCloseBtn?.addEventListener('click', closeMobileMenu);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mobileMenu?.classList.contains('open')) closeMobileMenu(); });
+  window.matchMedia('(min-width: 1024px)').addEventListener?.('change', (e) => { if (e.matches && mobileMenu?.classList.contains('open')) closeMobileMenu(); });
   mobileMenu?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMobileMenu));
 
   /* Reveal on scroll */

@@ -134,6 +134,26 @@ const RES = {
       { key: 'is_active', label: 'Shown on the Services page', type: 'checkbox', def: true },
     ],
   },
+  guests: {
+    label: 'Special guests', noun: 'guest', table: 'special_guests', select: '*', admin: true, order: ['sort_order', 'name'],
+    note: 'Notable guests shown on the front page, in the photo area next to "A Comfortable Place to Stay, Dine, and Unwind". They rotate one at a time. With no guest shown, that area keeps its normal room photo.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Name', (r) => esc(r.name)],
+      ['Title', (r) => esc(r.title || '—')],
+      ['Visited', (r) => esc(r.visit_date ? new Date(`${r.visit_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    fields: [
+      { key: 'name', label: 'Guest name', type: 'text', required: true, max: 120 },
+      { key: 'title', label: 'Title or role (optional)', type: 'text', max: 120, hint: 'For example "Singer" or "Mayor of Candijay".' },
+      { key: 'visit_date', label: 'Date of visit (optional)', type: 'date' },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
+      { key: 'note', label: 'A short note (optional)', type: 'textarea', max: 400, span2: true, keepEmpty: true },
+      { key: 'is_visible', label: 'Shown on the front page', type: 'checkbox', def: true },
+    ],
+  },
   rooms: {
     label: 'Room rates', noun: 'room rate', table: 'room_rates', select: '*', admin: true, order: ['sort_order', 'name'],
     columns: [['Room', (r) => esc(r.name)], ['Per night', (r) => `<span class="price" data-pricecell>${peso(r.price_per_night)}</span>`]],
@@ -212,7 +232,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -391,7 +411,7 @@ async function cancelOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', price_history: 'history',
+  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -473,14 +493,15 @@ function confirmDialog(title, message, label = 'Confirm', danger = true) {
 }
 
 /* ---------- inquiries (room bookings, table reservations, messages) ---------- */
-const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message', massage: 'Massage' };
+const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message', massage: 'Massage', event: 'Event' };
 const isInqTab = (t = S.tab) => t === 'inquiries';
-// inside Inquiries: the Massage sub-tab shows massage requests, Booking shows everything else
-const inqScope = () => inquiries.filter((i) => (S.isub === 'massage') === (i.kind === 'massage'));
+// inside Inquiries: Massage and Events have their own sub-tabs, Booking shows everything else
+const inqSub = (i) => (i.kind === 'massage' ? 'massage' : i.kind === 'event' ? 'event' : 'booking');
+const inqScope = () => inquiries.filter((i) => inqSub(i) === S.isub);
 const INQ_STATUS = { new: 'New', contacted: 'Contacted', closed: 'Closed' };
 const DETAIL_LABEL = {
   check_in: 'Check-in', check_out: 'Check-out', guests: 'Guests', room_preference: 'Room',
-  massage_type: 'Massage', date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
+  event_type: 'Event', venue: 'Venue', massage_type: 'Massage', service_type: 'Where', address: 'Home address', date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
 };
 let inquiries = [];
 S.ifilter = 'new';
@@ -497,15 +518,15 @@ async function loadInquiries() {
 
 async function updateInquiryBadge() {
   const base = () => supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new');
-  const [other, massage] = await Promise.all([base().neq('kind', 'massage'), base().eq('kind', 'massage')]);
-  S.newInq = { booking: other.count || 0, massage: massage.count || 0 };
-  const n = S.newInq.booking + S.newInq.massage;
+  const [other, massage, event] = await Promise.all([base().not('kind', 'in', '(massage,event)'), base().eq('kind', 'massage'), base().eq('kind', 'event')]);
+  S.newInq = { booking: other.count || 0, massage: massage.count || 0, event: event.count || 0 };
+  const n = S.newInq.booking + S.newInq.massage + S.newInq.event;
   const tab = document.querySelector('#st-tabs [data-tab="inquiries"]');
   if (tab) tab.innerHTML = `Inquiries${n ? ` <span class="tab-badge" aria-label="${n} new">${n}</span>` : ''}`;
   renderInqSubtabs();
 }
 
-const INQ_SUB = [['booking', 'Booking'], ['massage', 'Massage']];
+const INQ_SUB = [['booking', 'Booking'], ['massage', 'Massage'], ['event', 'Events']];
 function renderInqSubtabs() {
   const el = $('i-sub');
   if (!el) return;
@@ -549,7 +570,7 @@ function renderInquiries() {
   'inquiries', 'created_at', 'desc');
   $('i-body').innerHTML = list.length
     ? `<div class="order-grid">${list.map(inquiryCard).join('')}</div>`
-    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : S.isub === 'massage' ? 'Massage requests from the Services page will appear here automatically.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
+    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : S.isub === 'massage' ? 'Massage requests from the Services page will appear here automatically.' : S.isub === 'event' ? 'Event and gathering requests from the Services page will appear here automatically.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
   S.fresh.clear();
 }
 
@@ -770,6 +791,7 @@ function fieldHtml(f, row) {
   let input;
   if (f.type === 'textarea') input = `<textarea id="${id}" name="${f.key}" rows="3" maxlength="${f.max || 500}">${esc(v ?? '')}</textarea>`;
   else if (f.type === 'select') input = `<select id="${id}" name="${f.key}"><option value="">Select…</option>${f.options().map(([val, lab]) => `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
+  else if (f.type === 'date') input = `<input type="date" id="${id}" name="${f.key}" value="${esc(v ?? '')}">`;
   else if (f.type === 'datetime') input = `<input type="datetime-local" id="${id}" name="${f.key}" value="${esc(toLocalInput(v))}">`;
   else if (f.type === 'stockopt') input = `<input type="text" inputmode="numeric" id="${id}" name="${f.key}" value="${esc(v ?? '')}" placeholder="Not tracked" autocomplete="off">`;
   else if (f.type === 'price' || f.type === 'priceopt' || f.type === 'money0') input = `<input type="text" inputmode="decimal" id="${id}" name="${f.key}" value="${esc(v ?? '')}" autocomplete="off">`;
@@ -818,6 +840,8 @@ function collect(cfg, form) {
       else v = Number(v.replace(/,/g, '') || 0);
     } else if (f.type === 'int') {
       if (!/^-?\d+$/.test(v)) bad = 'Enter a whole number.'; else v = Number(v);
+    } else if (f.type === 'date') {
+      v = v || null;
     } else if (f.type === 'datetime') {
       v = v ? new Date(v).toISOString() : null;
     } else if (f.type === 'image') {
@@ -827,7 +851,7 @@ function collect(cfg, form) {
       else if (f.max && v.length > f.max) bad = `Maximum ${f.max} characters.`;
       else if (f.type === 'slug' && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v)) bad = 'Use lowercase letters, numbers and single dashes.';
       else if (f.pattern && !f.pattern.test(v)) bad = f.patternMsg || 'Invalid value.';
-      if (v === '' && !f.required) v = f.key === 'description' ? '' : null;
+      if (v === '' && !f.required) v = (f.key === 'description' || f.keepEmpty) ? '' : null;
     }
     if (bad) errors[f.key] = bad;
     payload[f.key] = v;

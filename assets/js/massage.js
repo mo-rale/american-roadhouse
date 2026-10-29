@@ -58,6 +58,10 @@ if (dlg && list) {
   dlg.querySelectorAll('[data-show]').forEach((b) => b.addEventListener('click', () => show(b.dataset.show)));
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });   // click on the backdrop
 
+  const addrWrap = document.getElementById('mf-address-wrap');
+  const isHome = () => form.elements.service_type.value === 'Home service';
+  form.querySelectorAll('input[name=service_type]').forEach((r) => r.addEventListener('change', () => { addrWrap.hidden = !isHome(); }));
+
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   form.elements.date.min = today;
 
@@ -71,8 +75,10 @@ if (dlg && list) {
     if (name.length < 2) { errBox.textContent = 'Please enter your name.'; form.elements.full_name.focus(); return; }
     if (!/^[0-9+() -]{7,24}$/.test(phone)) { errBox.textContent = 'Please enter a valid phone number.'; form.elements.phone.focus(); return; }
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { errBox.textContent = 'Please enter a valid email address.'; form.elements.email.focus(); return; }
+    if (isHome() && form.elements.address.value.trim().length < 6) { errBox.textContent = 'Please enter your address for home service.'; form.elements.address.focus(); return; }
     if (!isConfigured) { errBox.textContent = 'Online requests are unavailable right now. Please call 0915 875 4860.'; return; }
     const details = {
+      service_type: form.elements.service_type.value, address: isHome() ? form.elements.address.value.trim() : '',
       massage_type: typeSel.value, date: form.elements.date.value, time: form.elements.time.value,
       guests: form.elements.guests.value, notes: form.elements.notes.value.trim(),
     };
@@ -85,6 +91,7 @@ if (dlg && list) {
       return;
     }
     form.reset();
+    addrWrap.hidden = true;
     form.hidden = true;
     okBox.hidden = false;
   });

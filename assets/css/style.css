@@ -924,7 +924,8 @@ footer a:hover{ color: var(--brass); }
 .massage-ok p{ color:#6b6357; margin:6px 0 0; }
 
 /* ---- Phones: comfortable tap targets, no auto-zoom on form fields, no sideways scroll ---- */
-html, body{ max-width:100%; overflow-x:hidden; }
+html.menu-lock{ overflow:hidden; }
+html, body{ max-width:100%; overflow-x:clip; }   /* clip (not hidden) so position:sticky bars keep working */
 img, video, iframe, svg{ max-width:100%; }
 @media (max-width:768px){
   input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea{ font-size:16px !important; }
@@ -960,4 +961,53 @@ img, video, iframe, svg{ max-width:100%; }
 @media (max-width:480px){
   #massage-menu .massage-foot{ position:sticky; bottom:0; background:var(--linen); border-top:1px solid rgba(15,13,11,.1); padding-top:12px; padding-bottom:16px; }
   .massage-dlg #massage-menu{ max-height:52vh; }
+}
+.massage-home{ margin:0; padding:10px 26px 0; font-size:13.5px; color:var(--wood); font-weight:600; }
+.massage-where{ border:0; margin:0; padding:0; display:grid; gap:8px; }
+.massage-where legend{ padding:0; margin-bottom:6px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#6b6357; font-weight:600; }
+.massage-form label.massage-radio{ display:flex; align-items:center; gap:10px; text-transform:none; letter-spacing:0; font-size:15px; font-weight:500; color:var(--ink); min-height:40px; }
+.massage-form label.massage-radio input{ width:20px; height:20px; padding:0; accent-color:var(--wood); }
+@media (max-width:480px){ .massage-home{ padding-left:18px; padding-right:18px; } }
+.massage-dlg [hidden]{ display:none !important; }
+.massage-scroll{ overflow:auto; max-height:50vh; }
+.massage-form input[type=number]{ font-variant-numeric:tabular-nums; }
+
+/* ---- Special guests (front page welcome area) ---- */
+.framed-img.has-guests > .guest-fallback{ display:none; }
+.framed-img.has-guests:hover img{ transform:none; }
+.guest-slides{ position:relative; overflow:hidden; aspect-ratio:4 / 5; background:#14110E; }
+.guest-slide{ position:absolute; inset:0; margin:0; transform:translateX(100%); transition:transform .6s cubic-bezier(.65,0,.25,1); pointer-events:none; }
+.guest-slide.is-on{ transform:none; pointer-events:auto; }
+@media (prefers-reduced-motion: reduce){ .guest-slide{ transition:none; } }
+.guest-slide img{ display:block; width:100%; height:100%; object-fit:cover; }
+.guest-slide figcaption{ position:absolute; left:0; right:0; bottom:0; padding:64px 26px 50px; color:#fff; display:grid; gap:4px;
+  background:linear-gradient(to top, rgba(15,13,11,.82), rgba(15,13,11,.5) 60%, rgba(15,13,11,0)); }
+.guest-slide strong{ font-family:'Playfair Display',Georgia,serif; font-size:26px; font-weight:600; line-height:1.2; }
+.guest-title{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--brass); font-weight:600; }
+.guest-slide p{ margin:6px 0 0; font-size:14.5px; color:rgba(255,255,255,.85); max-width:40ch; }
+.guest-date{ margin-top:6px; font-size:12.5px; color:rgba(255,255,255,.7); }
+.guest-badge{ position:absolute; top:26px; left:26px; z-index:2; padding:6px 12px; border-radius:999px; background:rgba(15,13,11,.6); color:#fff;
+  font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; }
+.guest-dots{ position:absolute; left:26px; bottom:22px; z-index:2; display:flex; gap:10px; }
+.guest-dot{ width:10px; height:10px; padding:0; border:0; border-radius:50%; background:rgba(255,255,255,.5); position:relative; transition:width .25s ease, background .25s ease; }
+.guest-dot::after{ content:""; position:absolute; inset:-14px -4px; }
+.guest-dot[aria-current="true"]{ width:26px; border-radius:6px; background:var(--brass); }
+@media (max-width:480px){
+  .guest-slide figcaption{ padding:56px 20px 46px; }
+  .guest-slide strong{ font-size:22px; }
+  .guest-badge{ top:20px; left:20px; }
+  .guest-dots{ left:20px; bottom:18px; }
+}
+/* very narrow phones (320-400px): let a long price sit under the dish name instead of squeezing it */
+.menu-item-top > :first-child{ min-width:0; overflow-wrap:anywhere; }
+@media (max-width:400px){
+  .menu-item-top{ flex-wrap:wrap; gap:2px 12px; }
+  .menu-item-top > :first-child{ flex:1 1 100%; }
+  .menu-price{ white-space:normal; }
+}
+/* short screens (small phones, phones on their side): a smaller photo so the form gets the room */
+@media (max-height:700px){
+  .massage-head img{ height:clamp(90px, 20vh, 160px); }
+  .massage-dlg #massage-formview, .massage-dlg #massage-menu, .massage-scroll{ max-height:58vh; }
+  .massage-dlg{ max-height:94vh; }
 }
