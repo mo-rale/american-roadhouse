@@ -10,7 +10,7 @@
 .price, .num{ font-family:'Inter',Arial,sans-serif; font-variant-numeric: lining-nums tabular-nums; font-weight:600; }
 
 /* ---- Layout ---- */
-.shop-layout{ display:grid; gap:32px; grid-template-columns:1fr; align-items:start; }
+.shop-layout{ display:grid; gap:32px; grid-template-columns:minmax(0,1fr); align-items:start; }
 @media (min-width:1000px){ .shop-layout{ grid-template-columns: minmax(0,1fr) 380px; } }
 
 /* ---- Category chips ---- */
@@ -344,3 +344,22 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 /* Stock note next to a price on the ordering page */
 .dish-price{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
 .stock-note{ font-size:12px; font-weight:600; letter-spacing:.04em; color:#8F3B28; }
+
+/* ---- Phones: staff dashboard ---- */
+@media (max-width:768px){
+  .chips button, .btn-xs{ min-height:40px; }
+  .chips{ flex-wrap:wrap; }
+  #st-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; flex-wrap:nowrap; }
+  #st-tabs::-webkit-scrollbar{ display:none; }
+  #st-tabs button{ white-space:nowrap; flex:none; min-height:44px; }
+  .subtabs{ overflow-x:auto; scrollbar-width:none; }
+  .subtabs button{ min-height:44px; white-space:nowrap; }
+  .st-toolbar{ flex-wrap:wrap; gap:10px; }
+  .st-toolbar .tool-right{ width:100%; flex-wrap:wrap; }
+  .st-search, .st-select{ width:100%; min-height:44px; }
+  .range-row{ flex-wrap:wrap; }
+  .range-row input[type=date], .range-row select{ min-height:42px; }
+  .purge-row select{ min-height:42px; }
+  .table-wrap, #r-body{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #signout{ min-height:42px; }
+}

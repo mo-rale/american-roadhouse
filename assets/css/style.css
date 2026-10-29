@@ -922,3 +922,42 @@ footer a:hover{ color: var(--brass); }
 .massage-err{ color:#8F3B28; font-size:13.5px; min-height:1px; }
 .massage-ok{ padding:10px 26px 24px; }
 .massage-ok p{ color:#6b6357; margin:6px 0 0; }
+
+/* ---- Phones: comfortable tap targets, no auto-zoom on form fields, no sideways scroll ---- */
+html, body{ max-width:100%; overflow-x:hidden; }
+img, video, iframe, svg{ max-width:100%; }
+@media (max-width:768px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea{ font-size:16px !important; }
+  .nav-logo{ min-height:44px; display:inline-flex; align-items:center; }
+  .page-hero .crumb a{ display:inline-flex; align-items:center; min-height:32px; }
+  .gallery-filter{ min-height:42px; }
+  .btn-add{ min-height:42px; }
+  .btn-sm{ min-height:42px; }
+  .feature-card a[href]{ display:inline-flex; align-items:center; min-height:40px; }
+  .hero-dot{ position:relative; }
+  .hero-dot::after{ content:""; position:absolute; inset:-17px -6px; }
+  .tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab-btn{ white-space:nowrap; }
+  .map-wrap iframe, .location-map iframe{ height:300px; }
+  table{ max-width:100%; }
+  .container{ padding-left:20px; padding-right:20px; }
+}
+@media (max-width:480px){
+  h1{ overflow-wrap:anywhere; }
+  .massage-dlg{ width:calc(100% - 20px); max-height:92vh; }
+  .massage-head img{ height:clamp(170px, 26vh, 240px); }
+  .massage-list, .massage-form, .massage-foot, .massage-dlg h3, .massage-sub, .massage-ok{ padding-left:18px; padding-right:18px; }
+  .massage-form-row{ grid-template-columns:1fr; }
+  .massage-row{ flex-direction:column; gap:6px; }
+  .massage-meta{ text-align:left; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .massage-foot .btn{ flex:1 1 100%; }
+}
+@media (max-width:480px){
+  .tabs[data-group="forms"]{ overflow:visible; gap:4px; }
+  .tabs[data-group="forms"] .tab-btn{ flex:1; white-space:normal; text-align:center; font-size:14.5px; padding:12px 4px; line-height:1.25; }
+}
+@media (max-width:480px){
+  #massage-menu .massage-foot{ position:sticky; bottom:0; background:var(--linen); border-top:1px solid rgba(15,13,11,.1); padding-top:12px; padding-bottom:16px; }
+  .massage-dlg #massage-menu{ max-height:52vh; }
+}
