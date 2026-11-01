@@ -363,3 +363,7 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
   .table-wrap, #r-body{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   #signout{ min-height:42px; }
 }
+
+/* delete-section dialog */
+.sd-opt{ display:flex; align-items:center; gap:10px; margin:10px 0; font-size:14.5px; flex-wrap:wrap; }
+.sd-opt select{ flex:1; min-width:160px; min-height:40px; }

@@ -95,6 +95,17 @@
   </div>
 </dialog>
 
+<dialog id="secdel" class="st-dialog st-confirm" aria-labelledby="secdel-title">
+  <form id="secdel-form" method="dialog" novalidate style="padding:24px;">
+    <h3 id="secdel-title"></h3>
+    <p id="secdel-msg" style="color:#6b6357;font-size:14.5px;margin-bottom:14px;"></p>
+    <label class="sd-opt"><input type="radio" name="mode" value="move" checked> <span>Move the dishes to</span> <select name="target" aria-label="Move the dishes to"></select></label>
+    <label class="sd-opt"><input type="radio" name="mode" value="delete"> <span>Delete the dishes too <em style="color:#8F3B28;font-style:normal;">(cannot be undone)</em></span></label>
+    <div class="form-error" id="secdel-error" role="alert" style="margin-top:10px;"></div>
+    <div class="dialog-actions"><button type="button" class="btn btn-outline btn-sm" id="secdel-no">Cancel</button><button type="button" class="btn btn-sm btn-danger" id="secdel-ok">Delete section</button></div>
+  </form>
+</dialog>
+
 <dialog id="pwd" class="st-dialog st-confirm" aria-labelledby="pwd-title">
   <form id="pwd-form" method="dialog" novalidate>
     <h3 id="pwd-title">Reset password</h3>

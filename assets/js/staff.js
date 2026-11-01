@@ -286,13 +286,13 @@ const ago = (iso) => {
   return fmtDate(iso);
 };
 
+// Alert sound for a new order or inquiry (and the preview when Sound is switched on).
+let alertAudio = null;
 function beep() {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
-    const o = c.createOscillator(), g = c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.frequency.value = 880; g.gain.value = 0.08;
-    o.start(); o.stop(c.currentTime + 0.25);
+    alertAudio = alertAudio || new Audio('assets/sounds/the_price_is_right_ding.mp3');
+    alertAudio.currentTime = 0;
+    alertAudio.play().catch(() => { /* the browser blocks sound until the page has been clicked once */ });
   } catch { /* audio not available */ }
 }
 
@@ -918,9 +918,56 @@ async function toggleField(key, id, field) {
   loadResource(key);
 }
 
+// A section that still has dishes cannot simply be removed: ask whether to move them or delete them too.
+async function deleteSection(row) {
+  const { count, error: cErr } = await supabase.from('menu_items').select('id', { count: 'exact', head: true }).eq('category_id', row.id);
+  if (cErr) { toast(friendlyError(cErr), 'error'); return; }
+  if (!count) {
+    const ok = await confirmDialog(`Delete “${row.name}”?`, 'This cannot be undone. To keep it but stop showing it, switch it off instead.', 'Delete');
+    if (!ok) return;
+    const { error } = await supabase.from('categories').delete().eq('id', row.id);
+    if (error) toast(friendlyError(error), 'error'); else toast('Deleted.');
+    loadResource('sections');
+    return;
+  }
+  const d = $('secdel');
+  const f = $('secdel-form');
+  const others = currentRows.filter((r) => r.id !== row.id);
+  $('secdel-title').textContent = `“${row.name}” has ${count} dish${count === 1 ? '' : 'es'}`;
+  $('secdel-msg').textContent = 'A section cannot be deleted while it has dishes. Choose what happens to them.';
+  f.elements.target.innerHTML = others.map((c) => `<option value="${esc(c.id)}" ${c.venue === row.venue ? '' : 'data-other'}>${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || c.venue)})</option>`).join('');
+  f.elements.mode.value = others.length ? 'move' : 'delete';
+  f.elements.mode.forEach?.((r) => { if (r.value === 'move') r.disabled = !others.length; });
+  $('secdel-error').textContent = '';
+  const ok = $('secdel-ok');
+  ok.disabled = false;
+  await new Promise((resolve) => {
+    const done = () => { d.onclose = null; if (d.open) d.close(); resolve(); };
+    $('secdel-no').onclick = done;
+    d.onclose = () => resolve();
+    ok.onclick = async () => {
+      const mode = f.elements.mode.value;
+      const target = f.elements.target.value;
+      if (mode === 'move' && !target) { $('secdel-error').textContent = 'Choose a section to move the dishes to.'; return; }
+      ok.disabled = true;
+      const step = mode === 'move'
+        ? await supabase.from('menu_items').update({ category_id: target }).eq('category_id', row.id)
+        : await supabase.from('menu_items').delete().eq('category_id', row.id);
+      if (step.error) { $('secdel-error').textContent = friendlyError(step.error); ok.disabled = false; return; }
+      const { error } = await supabase.from('categories').delete().eq('id', row.id);
+      if (error) { $('secdel-error').textContent = friendlyError(error); ok.disabled = false; return; }
+      toast(mode === 'move' ? `Section deleted. ${count} dish${count === 1 ? ' was' : 'es were'} moved.` : `Section and ${count} dish${count === 1 ? '' : 'es'} deleted.`);
+      done();
+    };
+    d.showModal();
+  });
+  loadResource('sections');
+}
+
 async function deleteRow(key, id) {
   const row = currentRows.find((r) => r.id === id);
   if (!row) return;
+  if (key === 'sections') return deleteSection(row);
   const ok = await confirmDialog(`Delete “${row.name || row.code}”?`, 'This cannot be undone. To keep it but stop showing it, switch it off instead.', 'Delete');
   if (!ok) return;
   const { error } = await supabase.from(RES[key].table).delete().eq('id', id);
