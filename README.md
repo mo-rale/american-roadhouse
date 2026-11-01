@@ -6,7 +6,7 @@ Responsive static website for American Roadhouse in Tugas, Candijay, Bohol. It u
 
 - `index.html` — home and quick booking inquiry
 - `rooms.html` — room types and rates
-- `restaurant.html` — dining and the full menu (Main and Roof Deck tabs, menu boards); the old `menu.html` now redirects here
+- `restaurant.html` — dining and the full menu (Main and Roof Deck tabs); the old `menu.html` now redirects here
 - `gallery.html` — photo gallery and lightbox
 - `contact.html` — one page for About, Location and Contact (room, table, and general inquiry forms); the old `about.html` and `location.html` redirect to its sections
 - `booking.html` — standalone booking inquiry page

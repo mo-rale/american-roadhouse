@@ -816,20 +816,6 @@ footer a:hover{ color: var(--brass); }
 }
 
 
-/* Menu board gallery: supplied restaurant menu images */
-.menu-board-section { background: var(--linen); }
-.menu-board-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; margin-top:34px; }
-.menu-board-card { display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(139,111,71,.24); border-radius:14px; background:#fffdf8; color:var(--ink); text-decoration:none; box-shadow:0 5px 18px rgba(28,25,22,.06); transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease; }
-.menu-board-card:hover { transform:translateY(-4px); box-shadow:0 12px 28px rgba(28,25,22,.13); border-color:var(--brass); }
-.menu-board-card img { display:block; width:100%; aspect-ratio:2/3; object-fit:cover; object-position:top center; background:var(--linen-deep); }
-.menu-board-card span { display:flex; flex-direction:column; gap:5px; padding:16px 18px 18px; }
-.menu-board-card strong { font-family:'Playfair Display',serif; font-size:19px; }
-.menu-board-card small { color:#71675c; font-size:13px; line-height:1.5; }
-.menu-board-note { margin:22px 0 0; color:#81786d; text-align:center; font-size:13px; }
-@media(max-width:900px) { .menu-board-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } }
-@media(max-width:520px) { .menu-board-grid { grid-template-columns:1fr; gap:18px; max-width:420px; margin-left:auto; margin-right:auto; } .menu-board-card span { padding:14px 16px 16px; } }
-@media(prefers-reduced-motion:reduce) { .menu-board-card { transition:none; } .menu-board-card:hover { transform:none; } }
-
 /* Room switched off in the staff dashboard */
 .btn.is-unavailable, .btn.is-unavailable:hover{
   background:#DDD7CB; border-color:#DDD7CB; color:#7A7367; box-shadow:none; cursor:not-allowed; transform:none;
