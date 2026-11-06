@@ -14,8 +14,8 @@ const state = {
   venues: { main: [], roofdeck: [] },
   venue: 'main',              // Main is the default, as on the Restaurant page
   cart: new Map(),            // line key -> { id, qty, extras: [extra ids] } (the key is the dish id plus its extras)
-  extras: new Map(),          // extra id -> { id, menu_item_id, option_group, name, price }
-  extrasByItem: new Map(),    // dish id -> its extras, in order
+  extras: new Map(),          // add-on id -> { id, name, price, option_type: 'extra' }
+  optionsByItem: new Map(),   // dish id -> size/flavor options, in order
   extrasOk: true,
   loaded: false,
   confirmId: null,
@@ -52,26 +52,31 @@ const isOrderable = (it) => it.price != null && it.is_available;      // is_avai
 const maxQty = (it) => Math.min(50, it.stock ?? 50);
 const lineKey = (id, extras) => (extras.length ? `${id}|${[...extras].sort().join(',')}` : id);
 const itemQty = (id) => [...state.cart.values()].filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0);
-const itemExtras = (it) => state.extrasByItem.get(it.id) || [];
+const itemOptions = (it) => [
+  ...[...state.extras.values()],
+  ...(state.optionsByItem.get(it.id) || []),
+];
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
   try {
-    const [cats, items, extras] = await Promise.all([
+    const [cats, items, extras, options] = await Promise.all([
       supabase.from('categories').select('*').eq('is_visible', true).order('sort_order').order('name'),
       supabase.from('menu_items').select('*').eq('is_visible', true).order('sort_order').order('name'),
       supabase.from('menu_extras').select('*').eq('is_active', true).order('sort_order').order('name'),
+      supabase.from('menu_options').select('*').eq('is_active', true).order('option_type').order('sort_order').order('name'),
     ]);
     if (cats.error) throw cats.error;
     if (items.error) throw items.error;
 
     state.categories = cats.data;
     // extras are optional: if they cannot be read (not set up yet) the menu still works without them
-    state.extrasOk = !extras.error;
-    const exList = (extras.data || []).map((e) => ({ ...e, price: Number(e.price) }));
+    state.extrasOk = !extras.error && !options.error;
+    const exList = (extras.data || []).map((e) => ({ ...e, option_type: 'extra', price: Number(e.price) }));
+    const optionList = (options.data || []).map((e) => ({ ...e, price: Number(e.price) }));
     state.extras = new Map(exList.map((e) => [e.id, e]));
-    state.extrasByItem = new Map();
-    exList.forEach((e) => { if (!state.extrasByItem.has(e.menu_item_id)) state.extrasByItem.set(e.menu_item_id, []); state.extrasByItem.get(e.menu_item_id).push(e); });
+    state.optionsByItem = new Map();
+    optionList.forEach((e) => { if (!state.optionsByItem.has(e.menu_item_id)) state.optionsByItem.set(e.menu_item_id, []); state.optionsByItem.get(e.menu_item_id).push(e); });
     const visibleCats = new Set(cats.data.map((c) => c.id));
     const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => {
       const own = state.edit?.orig.get(i.id) || 0;                       // portions this order already holds are not "taken" from it
@@ -109,7 +114,7 @@ function reconcileCart() {
     const it = state.items.get(ln.id);
     if (!it || !isOrderable(it)) { state.cart.delete(key); changed++; continue; }
     if (!state.extrasOk) continue;
-    const valid = new Set(itemExtras(it).map((x) => x.id));
+    const valid = new Set(itemOptions(it).map((x) => x.id));
     const ex = ln.extras.filter((x) => valid.has(x));
     if (ex.length !== ln.extras.length) {
       state.cart.delete(key);
@@ -141,7 +146,7 @@ function renderChips(sections) {
 function dishControls(it) {
   if (it.price == null) return '<span class="badge">Ask your server</span>';
   if (!it.is_available) return '<span class="badge bad">Sold out</span>';
-  if (itemExtras(it).length) {                       // dishes with paid extras always go through the "customize" step
+  if (itemOptions(it).length) {                      // dishes with options always go through the "customize" step
     const n = itemQty(it.id);
     return `${n ? `<span class="in-cart">${n} in order</span>` : ''}<button type="button" class="btn btn-primary btn-add" data-action="custom" data-id="${esc(it.id)}" ${n >= maxQty(it) ? 'disabled' : ''}>${n ? 'Add more' : 'Add'}</button>`;
   }
@@ -447,11 +452,16 @@ function openExtras(itemId) {
   if (!it) return;
   const room = maxQty(it) - itemQty(itemId);
   if (room <= 0) { toast('You already have all the portions we have left of this dish.', 'error'); return; }
-  const list = itemExtras(it);
+  const list = itemOptions(it);
   let qty = 1;
   $('ex-title').textContent = it.name;
   $('ex-base').textContent = `${peso(it.price)} each. Pick any extras you would like.`;
-  $('ex-list').innerHTML = list.map((x) => `<label class="ex-opt"><input type="checkbox" value="${esc(x.id)}"><span><small>${esc(x.option_group || 'Extra')}</small>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('');
+  const groups = [['size', 'Size', 'radio'], ['flavor', 'Flavor', 'radio'], ['extra', 'Extras', 'checkbox']];
+  $('ex-list').innerHTML = groups.map(([type, label, control]) => {
+    const opts = list.filter((x) => (x.option_type || 'extra') === type);
+    if (!opts.length) return '';
+    return `<fieldset class="ex-group"><legend>${label}</legend>${opts.map((x) => `<label class="ex-opt"><input type="${control}" name="ex-${type}" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('')}</fieldset>`;
+  }).join('');
   const chosen = () => [...$('ex-list').querySelectorAll('input:checked')].map((i) => i.value);
   const refresh = () => {
     const extra = chosen().reduce((s, id) => s + Number(state.extras.get(id)?.price || 0), 0);

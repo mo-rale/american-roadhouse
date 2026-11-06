@@ -464,6 +464,9 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 
 /* extras (paid add-ons) */
 .ex-list{ border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); padding:6px 0; max-height:42vh; overflow:auto; }
+.ex-group{ border:0; padding:0; margin:0; }
+.ex-group + .ex-group{ border-top:1px solid var(--line-soft); margin-top:6px; padding-top:6px; }
+.ex-group legend{ color:#70512D; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; padding:4px 2px; }
 .ex-opt{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; font-size:15px; border-bottom:1px solid var(--line-soft); }
 .ex-opt:last-child{ border-bottom:0; }
 .ex-opt input{ width:20px; height:20px; accent-color:#B8893A; flex:none; }

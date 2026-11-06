@@ -115,21 +115,36 @@ const RES = {
     },
   },
   extras: {
-    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['sort_order', 'name'],
-    note: 'Options belong to one dish. Use the group label to identify options such as Size, Flavor, or Extra; customers see them when adding that dish.',
+    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*', admin: false, order: ['sort_order', 'name'],
+    note: 'General add-ons available across the menu. Customers see these as optional extras when adding a dish.',
     columns: [
       ['Extra', (r) => esc(r.name)],
-      ['Dish', (r) => esc(r.menu_items?.name || '—')],
-      ['Group', (r) => esc(r.option_group || 'Extra')],
       ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
-      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This option is offered only for the selected dish.' },
-      { key: 'option_group', label: 'Option group', type: 'select', required: true, options: () => [['Size', 'Size'], ['Flavor', 'Flavor'], ['Extra', 'Extra']], hint: 'Helps customers understand whether this is a size, flavor, or add-on.' },
       { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
       { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
+    ],
+  },
+  options: {
+    label: 'Sizes & flavors', noun: 'option', table: 'menu_options', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['option_type', 'sort_order', 'name'],
+    note: 'Dish-specific choices. Add sizes or flavors to the individual dish that offers them.',
+    columns: [
+      ['Dish', (r) => esc(r.menu_items?.name || '—')],
+      ['Type', (r) => esc(r.option_type === 'size' ? 'Size' : 'Flavor')],
+      ['Option', (r) => esc(r.name)],
+      ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
+    ],
+    toggles: [{ key: 'is_active', label: 'Available' }],
+    fields: [
+      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This size or flavor is offered only for the selected dish.' },
+      { key: 'option_type', label: 'Type', type: 'select', required: true, options: () => [['size', 'Size'], ['flavor', 'Flavor']] },
+      { key: 'name', label: 'Name customers see', type: 'text', required: true, max: 80 },
+      { key: 'price', label: 'Price adjustment (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for the base size or flavor.' },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first within the type.' },
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
     ],
   },
@@ -452,7 +467,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -741,7 +756,7 @@ let currentRows = [];
 async function loadResource(key) {
   const cfg = RES[key];
   try {
-    if (key === 'menu' || key === 'extras') await ensureCategories();
+    if (key === 'menu' || key === 'extras' || key === 'options') await ensureCategories();
     let q = supabase.from(cfg.table).select(cfg.select);
     cfg.order.forEach((c) => (q = q.order(c)));
     const { data, error } = await q;
@@ -761,10 +776,10 @@ async function ensureCategories() {
   S.menuItems = items.data;
 }
 
-const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
+const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name, r.menu_items?.name].filter(Boolean).join(' ').toLowerCase();
 
-const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras']];
-const menuSubtabs = (key) => (key === 'menu' || key === 'sections' || key === 'extras'
+const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
+const menuSubtabs = (key) => (key === 'menu' || key === 'sections' || key === 'extras' || key === 'options'
   ? `<div class="subtabs" role="tablist" aria-label="Menu">${MENU_SUB.map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
   : '');
 
@@ -775,10 +790,10 @@ function renderResource(key) {
     $('st-panel').innerHTML = `${menuSubtabs(key)}<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${key === 'menu' || key === 'extras' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
+        ${key === 'menu' || key === 'options' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
           <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
-        ${key === 'extras' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
+        ${key === 'extras' || key === 'options' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
           <select id="r-xprice" class="st-select" aria-label="Filter by price"><option value="">Any price</option><option value="paid">Paid</option><option value="free">Free</option></select>` : ''}
         ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
