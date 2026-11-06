@@ -392,3 +392,16 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .pin-key .k-out{ border:2px dashed #B8893A; background:rgba(184,137,58,.12); }
 .pin-key .k-in{ border:2px solid #2f6b3a; background:rgba(47,107,58,.12); }
 .ring-label span{ position:absolute; transform:translate(-50%,-50%); padding:1px 6px; border-radius:10px; font:700 11px/1.4 Inter,sans-serif; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+
+/* "Your orders" lookup */
+.mo-dlg{ width:min(560px,94vw); max-height:88vh; padding:22px; border:0; border-radius:16px; background:var(--white,#fff); box-shadow:0 30px 80px -20px rgba(0,0,0,.5); overflow:auto; }
+.mo-dlg::backdrop{ background:rgba(15,12,9,.55); }
+.mo-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.mo-head h2{ font-size:26px; margin:0; }
+.mo-note{ font-size:12.5px; color:#8a8378; margin:12px 0 0; }
+.mo-order{ border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-top:14px; }
+.mo-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.mo-top .num{ font-weight:700; font-size:18px; }
+.mo-meta{ font-size:13px; color:#6b6357; margin:4px 0 8px; }
+.mo-lines div{ display:flex; justify-content:space-between; gap:12px; font-size:14px; padding:2px 0; }
+.mo-lines .tot{ border-top:1px solid var(--line); margin-top:6px; padding-top:6px; }
