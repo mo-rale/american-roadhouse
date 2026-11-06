@@ -14,7 +14,7 @@ const state = {
   venues: { main: [], roofdeck: [] },
   venue: 'main',              // Main is the default, as on the Restaurant page
   cart: new Map(),            // line key -> { id, qty, extras: [extra ids] } (the key is the dish id plus its extras)
-  extras: new Map(),          // add-on id -> { id, name, price, option_type: 'extra' }
+  extrasBySection: new Map(), // section id -> add-ons for that section
   optionsByItem: new Map(),   // dish id -> size/flavor options, in order
   extrasOk: true,
   loaded: false,
@@ -53,7 +53,7 @@ const maxQty = (it) => Math.min(50, it.stock ?? 50);
 const lineKey = (id, extras) => (extras.length ? `${id}|${[...extras].sort().join(',')}` : id);
 const itemQty = (id) => [...state.cart.values()].filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0);
 const itemOptions = (it) => [
-  ...[...state.extras.values()],
+  ...(state.extrasBySection.get(it.category_id) || []),
   ...(state.optionsByItem.get(it.id) || []),
 ];
 const selectedOptions = (it, ids) => ids.map((id) => itemOptions(it).find((x) => x.id === id)).filter(Boolean);
@@ -80,7 +80,11 @@ async function loadCatalog({ silent = false } = {}) {
     state.extrasOk = !extras.error && !options.error;
     const exList = (extras.data || []).map((e) => ({ ...e, option_type: 'extra', price: Number(e.price) }));
     const optionList = (options.data || []).map((e) => ({ ...e, price: Number(e.price) }));
-    state.extras = new Map(exList.map((e) => [e.id, e]));
+    state.extrasBySection = new Map();
+    exList.forEach((e) => {
+      if (!state.extrasBySection.has(e.category_id)) state.extrasBySection.set(e.category_id, []);
+      state.extrasBySection.get(e.category_id).push(e);
+    });
     state.optionsByItem = new Map();
     optionList.forEach((e) => { if (!state.optionsByItem.has(e.menu_item_id)) state.optionsByItem.set(e.menu_item_id, []); state.optionsByItem.get(e.menu_item_id).push(e); });
     const visibleCats = new Set(cats.data.map((c) => c.id));

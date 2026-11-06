@@ -115,14 +115,16 @@ const RES = {
     },
   },
   extras: {
-    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*', admin: false, order: ['sort_order', 'name'],
-    note: 'General add-ons available across the menu. Customers see these as optional extras when adding a dish.',
+    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, categories(name, venue)', admin: false, order: ['sort_order', 'name'],
+    note: 'Add-ons available for every dish in a selected menu section. Customers see these when adding a dish from that section.',
     columns: [
       ['Extra', (r) => esc(r.name)],
+      ['Section', (r) => esc(r.categories ? `${VENUE_LABEL[r.categories.venue] || ''} · ${r.categories.name}` : '—')],
       ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
+      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]), hint: 'This extra is offered for every dish in this section.' },
       { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
       { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },

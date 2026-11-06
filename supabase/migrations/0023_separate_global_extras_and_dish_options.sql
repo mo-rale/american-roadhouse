@@ -31,10 +31,10 @@ select menu_item_id, lower(option_group), name, price, sort_order, is_active
  where lower(option_group) in ('size', 'flavor') and menu_item_id is not null;
 
 insert into public.menu_extras (category_id, menu_item_id, name, price, sort_order, is_active, option_group)
-select null, null, name, price, min(sort_order), bool_or(is_active), 'Extra'
+select category_id, null, name, price, min(sort_order), bool_or(is_active), 'Extra'
   from public.menu_extras
  where lower(coalesce(option_group, 'extra')) not in ('size', 'flavor')
- group by lower(name), name, price;
+ group by category_id, lower(name), name, price;
 
 delete from public.menu_extras;
 
