@@ -232,7 +232,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -263,6 +263,7 @@ function showTab(tab) {
   if (isInqTab(tab)) return loadInquiries();
   if (tab === 'history') return loadHistory();
   if (tab === 'staff') return loadStaff();
+  if (tab === 'delivery') return loadDelivery();
   return loadResource(tab);
 }
 
@@ -327,10 +328,11 @@ function orderCard(o) {
       : '<span class="o-meta">Closed. Only an administrator can reopen it.</span>';
   return `<article class="o-card s-${esc(o.status)} ${late ? 'late' : ''} ${S.fresh.has(o.id) ? 'fresh' : ''}" data-oid="${esc(o.id)}">
     <div class="o-head"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span></div>
-    <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}<br>
+    <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}${o.delivery_address ? `<br><strong>Deliver to:</strong> ${esc(o.delivery_address)}${o.delivery_lat != null ? ` · <a href="https://www.google.com/maps/dir/?api=1&destination=${esc(o.delivery_lat)},${esc(o.delivery_lng)}" target="_blank" rel="noopener">Open map${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</a>` : ''}` : ''}<br>
       <strong>${esc(o.customer_name)}</strong> · <a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></div>
     <div class="o-items">${o.order_items.map((i) => `<div><span>${i.quantity} × ${esc(i.item_name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
+      ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="o-total"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div></div>
     ${o.notes ? `<div class="o-note"><strong>Customer note:</strong> ${esc(o.notes)}</div>` : ''}
     <div class="o-actions">${actions}</div></article>`;
@@ -1216,6 +1218,91 @@ async function setStaff(email, role, active) {
   return true;
 }
 
+/* ---------- delivery fee settings ---------- */
+const DEL_FIELDS = [
+  ['base_fee', 'Base fee (PHP)', 'Charged for the first kilometres, up to the distance below.'],
+  ['base_km', 'Distance covered by the base fee (km)', 'Within this distance the customer pays only the base fee.'],
+  ['per_km_fee', 'Fee for each extra km (PHP)', 'Added for every kilometre beyond the base distance.'],
+  ['max_km', 'Farthest delivery distance (km)', 'Orders pinned farther than this are refused.'],
+  ['road_factor', 'Road factor', 'Roads are longer than a straight line. 1.3 means we count 30% extra. Use 1 for a straight line.'],
+];
+const delFee = (c, km) => Math.ceil(Number(c.base_fee) + Math.max(0, km - Number(c.base_km)) * Number(c.per_km_fee));
+
+function delExamples(c) {
+  const rows = [1, 2, 3, 5, 8, 10].filter((k) => k <= Number(c.max_km));
+  return rows.map((k) => `<tr><td data-label="Distance">${k} km</td><td data-label="Fee"><span class="price">${peso(delFee(c, k))}</span></td></tr>`).join('');
+}
+
+async function loadDelivery() {
+  try {
+    const { data, error } = await supabase.from('delivery_settings').select('*').eq('id', 1).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('Delivery settings are not set up yet. Run migration 0017 in Supabase first.');
+    S.del = data;
+    const ready = data.store_lat != null && data.store_lng != null;
+    $('st-panel').innerHTML = `
+      <div class="st-toolbar"><h2 style="font-size:22px;">Delivery fee</h2></div>
+      <p class="hint" style="margin:0 0 14px;">Customers who choose Delivery pin their location on a map. The fee is worked out from the distance to the restaurant using the numbers below, and changes apply to new orders straight away.</p>
+      ${ready ? '' : '<div class="banner error" style="margin-bottom:14px;">The restaurant location is not set, so no delivery fee is being charged yet. Set it below.</div>'}
+      <form id="delivery-form" class="add-staff" novalidate>
+        <div class="field"><label class="chk"><input type="checkbox" id="d-active" ${data.is_active ? 'checked' : ''}> Accept delivery orders</label></div>
+        <h3>Restaurant location</h3>
+        <div class="add-staff-grid">
+          <div class="field"><label for="d-lat">LATITUDE</label><input type="text" inputmode="decimal" id="d-lat" value="${data.store_lat ?? ''}" placeholder="9.8000"><div class="err"></div></div>
+          <div class="field"><label for="d-lng">LONGITUDE</label><input type="text" inputmode="decimal" id="d-lng" value="${data.store_lng ?? ''}" placeholder="124.5500"><div class="err"></div></div>
+        </div>
+        <p class="hint">Easiest: open the restaurant in Google Maps, right-click the pin, and click the numbers shown at the top of the menu to copy them. Paste both numbers (for example <em>9.8123, 124.5456</em>) into the Latitude box and they will fill in. Or stand at the restaurant and press the button.</p>
+        <p><button type="button" class="btn-xs" id="d-here">Use my current location</button></p>
+        <h3>Fee</h3>
+        <div class="add-staff-grid">
+          ${DEL_FIELDS.map(([k, l, h]) => `<div class="field"><label for="d-${k}">${l.toUpperCase()}</label><input type="text" inputmode="decimal" id="d-${k}" value="${data[k]}"><div class="err"></div><p class="hint" style="margin:4px 0 0;">${h}</p></div>`).join('')}
+        </div>
+        <div class="form-error" id="delivery-error" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-sm" id="delivery-save">Save delivery settings</button>
+      </form>
+      <h3 style="margin:22px 0 8px;">What customers pay (examples)</h3>
+      <div class="tbl-wrap"><table class="tbl resp"><thead><tr><th>Distance</th><th>Delivery fee</th></tr></thead><tbody id="d-examples">${delExamples(data)}</tbody></table></div>`;
+  } catch (err) { panelError(err, loadDelivery); }
+}
+
+function onDeliveryPaste(input) {
+  const m = input.value.match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
+  if (m) { $('d-lat').value = m[1]; $('d-lng').value = m[2]; }
+}
+
+async function onSaveDelivery() {
+  const errBox = $('delivery-error');
+  errBox.classList.remove('show');
+  document.querySelectorAll('#delivery-form .field').forEach((f) => f.classList.remove('invalid'));
+  const bad = (id, msg) => { const f = $(id).closest('.field'); f.classList.add('invalid'); f.querySelector('.err').textContent = msg; $(id).focus(); };
+  const num = (id) => Number(String($(id).value).replace(',', '.').trim());
+  const latRaw = $('d-lat').value.trim(), lngRaw = $('d-lng').value.trim();
+  let lat = null, lng = null;
+  if (latRaw || lngRaw) {
+    lat = num('d-lat'); lng = num('d-lng');
+    if (!latRaw || !Number.isFinite(lat) || lat < -90 || lat > 90) return bad('d-lat', 'Enter a latitude, for example 9.8123.');
+    if (!lngRaw || !Number.isFinite(lng) || lng < -180 || lng > 180) return bad('d-lng', 'Enter a longitude, for example 124.5456.');
+  }
+  const limits = { base_fee: [0, 100000], base_km: [0, 100], per_km_fee: [0, 100000], max_km: [0.5, 500], road_factor: [1, 3] };
+  const payload = { is_active: $('d-active').checked, store_lat: lat, store_lng: lng, updated_at: new Date().toISOString() };
+  for (const [k, [lo, hi]] of Object.entries(limits)) {
+    const v = num(`d-${k}`);
+    if (!Number.isFinite(v) || v < lo || v > hi) return bad(`d-${k}`, `Enter a number between ${lo} and ${hi}.`);
+    payload[k] = v;
+  }
+  const btn = $('delivery-save');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…';
+  try {
+    const { error } = await supabase.from('delivery_settings').update(payload).eq('id', 1);
+    if (error) throw error;
+    toast('Delivery settings saved.');
+    loadDelivery();
+  } catch (err) {
+    errBox.textContent = friendlyError(err); errBox.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Save delivery settings';
+  }
+}
+
 /* ---------- init ---------- */
 function init() {
   if (!isConfigured) {
@@ -1275,7 +1362,18 @@ function init() {
     else if (t.dataset.quickprice) quickPrice(t.dataset.quickprice, t.closest('td'));
     else if (t.dataset.quickstock) quickStock(t.dataset.quickstock, t.closest('td'));
     else if (t.dataset.qpCancel) renderResource(S.tab);
+    else if (t.id === 'd-here') {
+      if (!navigator.geolocation) { toast('This browser cannot share its location.', 'error'); return; }
+      navigator.geolocation.getCurrentPosition((p) => { $('d-lat').value = p.coords.latitude.toFixed(6); $('d-lng').value = p.coords.longitude.toFixed(6); toast('Location filled in. Press Save to keep it.'); }, () => toast('Could not get the location. Paste the numbers from Google Maps instead.', 'error'), { enableHighAccuracy: true, timeout: 12000 });
+    }
     else if (t.dataset.staffToggle) setStaff(t.dataset.staffToggle, t.dataset.role, t.dataset.active !== 'true');
+  });
+  $('st-panel').addEventListener('input', (e) => {
+    if (e.target.id === 'd-lat') onDeliveryPaste(e.target);
+    if (e.target.closest?.('#delivery-form') && S.del) {
+      const c = { ...S.del }; ['base_fee', 'base_km', 'per_km_fee', 'max_km'].forEach((k) => { const v = Number(String($(`d-${k}`)?.value).replace(',', '.')); if (Number.isFinite(v)) c[k] = v; });
+      const ex = $('d-examples'); if (ex) ex.innerHTML = delExamples(c);
+    }
   });
   $('st-panel').addEventListener('change', (e) => {
     if (e.target.dataset.rng) {
@@ -1311,6 +1409,7 @@ function init() {
   $('st-panel').addEventListener('submit', async (e) => {
     if (e.target.dataset.qp) { e.preventDefault(); saveQuickPrice(e.target); return; }
     if (e.target.dataset.qs) { e.preventDefault(); saveQuickStock(e.target); return; }
+    if (e.target.id === 'delivery-form') { e.preventDefault(); await onSaveDelivery(); return; }
     if (e.target.id !== 'staff-form') return;
     e.preventDefault();
     await onCreateStaff(e.target);

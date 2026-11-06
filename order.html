@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#14110E">
 <title>Order Online | American Roadhouse Hotel & Restaurant</title>
-<meta name="description" content="Order food online from American Roadhouse in Tugas, Candijay, Bohol. Pickup, dine-in, or delivery to your room.">
+<meta name="description" content="Order food online from American Roadhouse in Tugas, Candijay, Bohol. Delivery, dine-in, or delivery to your room.">
 <link rel="canonical" href="https://moralportfolio.crapeling29.workers.dev/order.html">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/brand/favicon-16.png">
@@ -55,15 +56,29 @@
         <form id="checkout" class="checkout" novalidate hidden>
           <div class="cart-totals" aria-live="polite">
             <div><span>Subtotal</span><span class="price" id="t-subtotal"></span></div>
+            <div id="t-fee-row" hidden><span>Delivery fee <small id="t-km"></small></span><span class="price" id="t-fee"></span></div>
             <div class="grand"><strong>Total</strong><strong class="price" id="t-total"></strong></div>
           </div>
 
           <fieldset>
             <legend>HOW WOULD YOU LIKE IT?</legend>
             <div class="opt-row" role="radiogroup">
-              <label><input type="radio" name="order_type" value="pickup" checked><span>Pickup</span></label>
+              <label><input type="radio" name="order_type" value="delivery" checked><span>Delivery</span></label>
               <label><input type="radio" name="order_type" value="dine_in"><span>Dine in</span></label>
               <label><input type="radio" name="order_type" value="room_delivery"><span>To my room</span></label>
+            </div>
+            <div class="field" id="address-field" style="margin-top:14px;">
+              <label for="f-address">DELIVERY ADDRESS</label>
+              <textarea id="f-address" name="delivery_address" rows="2" maxlength="300" autocomplete="street-address" placeholder="House number, street, barangay, landmark"></textarea>
+              <div class="err">Please enter your delivery address.</div>
+            </div>
+            <div class="field" id="pin-field" style="margin-top:14px;">
+              <label>PIN YOUR LOCATION</label>
+              <p class="pin-help">The delivery fee is based on the distance from the restaurant.</p>
+              <button type="button" class="btn btn-outline btn-sm" id="pin-gps">Use my current location</button>
+              <div id="pin-map" class="pin-map" role="application" aria-label="Map: tap or drag the pin to your delivery location"></div>
+              <div class="pin-status" id="pin-status" aria-live="polite">Tap the map or drag the pin to where we should deliver.</div>
+              <div class="err">Please pin your location on the map.</div>
             </div>
             <div class="field" id="room-field" hidden style="margin-top:14px;">
               <label for="f-room">ROOM NUMBER</label>

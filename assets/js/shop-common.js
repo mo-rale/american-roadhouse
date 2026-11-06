@@ -27,7 +27,7 @@ export const fmtDate = (iso) =>
 export const STATUS_LABEL = {
   pending: 'Pending', preparing: 'Preparing', ready: 'Ready', completed: 'Completed', cancelled: 'Cancelled',
 };
-export const TYPE_LABEL = { pickup: 'Pickup', dine_in: 'Dine in', room_delivery: 'Room delivery' };
+export const TYPE_LABEL = { delivery: 'Delivery', pickup: 'Pickup', dine_in: 'Dine in', room_delivery: 'Room delivery' };
 
 // Database errors look like "CODE: Friendly message"; show only the message.
 export function friendlyError(err) {

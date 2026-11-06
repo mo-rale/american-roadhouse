@@ -367,3 +367,22 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 /* delete-section dialog */
 .sd-opt{ display:flex; align-items:center; gap:10px; margin:10px 0; font-size:14.5px; flex-wrap:wrap; }
 .sd-opt select{ flex:1; min-width:160px; min-height:40px; }
+
+/* Main / Roof Deck switch: same segmented control as the Restaurant page */
+.venue-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:12px; border-bottom:0; margin-bottom:14px; }
+.venue-btn{ margin:0 !important; flex:none; padding:14px 18px 13px; border:1px solid var(--line); border-bottom:1px solid var(--line); border-radius:14px; background:var(--white); color:#8a8378;
+  transition:background .25s ease, border-color .25s ease, color .25s ease, box-shadow .25s ease; }
+.venue-btn:hover{ border-color:var(--brass); }
+.venue-btn[aria-selected="true"]{ background:var(--ink); border-color:var(--ink); color:var(--linen); box-shadow:0 10px 24px -14px rgba(15,12,9,.6); }
+.venue-btn[aria-selected="true"] .venue-sub{ color:#E6BC6A; }
+.venue-btn .venue-sub{ line-height:1.35; }
+@media (max-width:560px){ .venue-tabs{ gap:10px; } .venue-btn{ padding:12px 14px 11px; font-size:17px; } }
+
+/* Delivery: map pin + fee */
+.pin-help{ margin:0 0 8px; font-size:13px; color:#6b6357; }
+.pin-map{ height:220px; margin-top:10px; border-radius:12px; border:1px solid var(--line); overflow:hidden; background:#ece6da; z-index:0; }
+.pin-status{ margin-top:8px; font-size:13.5px; color:#6b6357; }
+.pin-status.ok{ color:#2f6b3a; font-weight:600; }
+.pin-status.bad{ color:#a33a2a; font-weight:600; }
+#t-fee-row small{ color:#8a8378; font-weight:400; }
+#pin-field.invalid .pin-map{ border-color:#a33a2a; }

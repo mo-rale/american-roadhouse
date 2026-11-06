@@ -17,6 +17,8 @@ const state = {
   loaded: false,
   confirmId: null,
   channels: [],
+  cfg: null,                  // delivery fee settings
+  pin: null,                  // { lat, lng, km, fee } for the delivery pin
 };
 
 /* ---------- cart persistence ---------- */
@@ -150,6 +152,107 @@ function renderMenu() {
     </section>`).join('');
 }
 
+/* ---------- delivery fee ---------- */
+// Same maths as place_order in the database (which is the one that counts): base fee for the first km, then per km, rounded up.
+const isDelivery = () => document.querySelector('input[name="order_type"]:checked')?.value === 'delivery';
+const cfgReady = () => Boolean(state.cfg && state.cfg.store_lat != null && state.cfg.store_lng != null);
+function distanceKm(lat, lng) {
+  const c = state.cfg, R = 6371, rad = (d) => (d * Math.PI) / 180;
+  const a = Math.sin(rad(lat - c.store_lat) / 2) ** 2 + Math.cos(rad(c.store_lat)) * Math.cos(rad(lat)) * Math.sin(rad(lng - c.store_lng) / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a)) * Number(c.road_factor);
+}
+const feeForKm = (km) => Math.ceil(Number(state.cfg.base_fee) + Math.max(0, km - Number(state.cfg.base_km)) * Number(state.cfg.per_km_fee));
+// null = not known yet (no pin); 0 = no fee
+function deliveryFee() {
+  if (!isDelivery() || !cfgReady()) return 0;
+  return state.pin ? state.pin.fee : null;
+}
+async function loadDeliveryCfg() {
+  try {
+    const { data } = await supabase.from('delivery_settings').select('*').eq('id', 1).maybeSingle();
+    state.cfg = data || null;
+  } catch { state.cfg = null; }
+}
+const pinMap = { map: null, marker: null, loading: null };
+function setPin(lat, lng) {
+  const st = $('pin-status');
+  if (!cfgReady()) {
+    state.pin = { lat, lng, km: null, fee: 0 };
+    st.textContent = 'Location pinned. Our team will confirm the delivery fee.'; st.className = 'pin-status ok';
+  } else {
+    const km = distanceKm(lat, lng), max = Number(state.cfg.max_km);
+    if (km > max) {
+      state.pin = null;
+      st.textContent = `That is about ${km.toFixed(1)} km away. We deliver up to ${max} km.`; st.className = 'pin-status bad';
+    } else {
+      state.pin = { lat, lng, km, fee: feeForKm(km) };
+      st.textContent = `About ${km.toFixed(1)} km from us. Delivery fee ${peso(state.pin.fee)}.`; st.className = 'pin-status ok';
+    }
+  }
+  $('pin-field').classList.remove('invalid');
+  renderCart();
+}
+
+// The map is loaded only when a customer chooses Delivery (Leaflet + OpenStreetMap).
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (pinMap.loading) return pinMap.loading;
+  pinMap.loading = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; js.onload = resolve; js.onerror = reject;
+    document.head.appendChild(js);
+  });
+  return pinMap.loading;
+}
+async function initPinMap() {
+  if (pinMap.map) { setTimeout(() => pinMap.map.invalidateSize(), 50); return; }
+  try { await loadLeaflet(); } catch { pinMap.loading = null; $('pin-status').textContent = 'The map could not load. Try "Use my current location".'; return; }
+  if (pinMap.map) return;
+  const L = window.L;
+  const start = cfgReady() ? [Number(state.cfg.store_lat), Number(state.cfg.store_lng)] : [9.8, 124.55];
+  const map = L.map('pin-map', { scrollWheelZoom: false }).setView(start, cfgReady() ? 14 : 12);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  const marker = L.marker(start, { draggable: true, opacity: 0 }).addTo(map);
+  pinMap.map = map; pinMap.marker = marker;
+  const place = (ll) => { marker.setLatLng(ll); marker.setOpacity(1); setPin(ll.lat, ll.lng); };
+  map.on('click', (e) => place(e.latlng));
+  marker.on('dragend', () => place(marker.getLatLng()));
+  if (state.pin) { marker.setLatLng([state.pin.lat, state.pin.lng]); marker.setOpacity(1); }
+  setTimeout(() => map.invalidateSize(), 50);
+}
+let autoTried = false;
+// Picking Delivery (or opening the checkout with Delivery selected) pins the customer's current location once, automatically.
+function autoLocate() {
+  if (autoTried || state.pin || !isDelivery() || !state.cart.size || !navigator.geolocation) return;
+  autoTried = true;
+  useMyLocation({ auto: true });
+}
+function useMyLocation({ auto = false } = {}) {
+  const st = $('pin-status');
+  if (!navigator.geolocation) { st.textContent = 'Your browser cannot share its location. Tap the map instead.'; st.className = 'pin-status bad'; return; }
+  st.textContent = 'Finding your location…'; st.className = 'pin-status';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    await initPinMap();
+    const { latitude: lat, longitude: lng } = pos.coords;
+    if (pinMap.marker) { pinMap.marker.setLatLng([lat, lng]); pinMap.marker.setOpacity(1); pinMap.map.setView([lat, lng], 16); }
+    setPin(lat, lng);
+  }, () => {
+    st.textContent = auto ? 'Location is off. Tap the map to drop the pin where we should deliver.' : 'We could not get your location. Tap the map to drop the pin instead.';
+    st.className = auto ? 'pin-status' : 'pin-status bad';
+  }, { enableHighAccuracy: true, timeout: 12000 });
+}
+function syncDeliveryUi() {
+  const on = isDelivery();
+  $('address-field').hidden = !on;
+  $('pin-field').hidden = !on;
+  if (on) initPinMap();
+  renderCart();
+  if (on) autoLocate();
+}
+
 /* ---------- cart ---------- */
 function cartLines() {
   return [...state.cart].map(([id, qty]) => ({ it: state.items.get(id), qty })).filter((l) => l.it);
@@ -174,8 +277,15 @@ function renderCart() {
     </div>`).join('');
 
   const sub = localSubtotal();
-  const q = { subtotal: sub, total: sub };
+  const fee = deliveryFee();
+  const q = { subtotal: sub, total: sub + (fee || 0) };
   $('t-subtotal').textContent = peso(q.subtotal);
+  if (lines.length && !$('checkout').hidden) autoLocate();
+  $('t-fee-row').hidden = !isDelivery() || !cfgReady();
+  if (isDelivery() && cfgReady()) {
+    $('t-fee').textContent = fee == null ? 'Pin your location' : peso(fee);
+    $('t-km').textContent = state.pin?.km != null ? `(${state.pin.km.toFixed(1)} km)` : '';
+  }
   $('t-total').textContent = peso(q.total);
 
   const fab = $('cart-fab');
@@ -210,6 +320,8 @@ function validateForm(form) {
     ['f-phone', rules.phone(form.phone.value)],
     ['f-email', rules.email(form.email.value)],
     ['f-room', type !== 'room_delivery' || form.room_number.value.trim().length > 0],
+    ['f-address', type !== 'delivery' || form.delivery_address.value.trim().length >= 6],
+    ['pin-gps', type !== 'delivery' || !cfgReady() || Boolean(state.pin)],
   ];
   let first = null;
   for (const [id, ok] of checks) {
@@ -246,7 +358,7 @@ async function onSubmit(e) {
   btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Placing order…';
   try {
     const session = await ensureSession();
-    const { data, error } = await supabase.rpc('place_order', {
+    const args = {
       p_customer_name: form.name.value,
       p_phone: form.phone.value,
       p_email: form.email.value,
@@ -255,7 +367,13 @@ async function onSubmit(e) {
       p_notes: form.notes.value,
       p_discount_code: '',
       p_items: cartPayload(),
-    });
+    };
+    // only delivery orders send the address, so other order types keep working with any version of the database function
+    if (form.order_type.value === 'delivery') {
+      args.p_delivery_address = form.delivery_address.value;
+      if (state.pin) { args.p_delivery_lat = state.pin.lat; args.p_delivery_lng = state.pin.lng; }
+    }
+    const { data, error } = await supabase.rpc('place_order', args);
     if (error) throw error;
     state.cart.clear(); saveCart();
     renderCart();
@@ -288,7 +406,8 @@ function stepsHtml(status) {
 }
 
 function confirmHtml(o) {
-  const where = o.order_type === 'room_delivery' ? `${TYPE_LABEL[o.order_type]} · Room ${esc(o.room_number)}` : TYPE_LABEL[o.order_type];
+  const where = o.order_type === 'room_delivery' ? `${TYPE_LABEL[o.order_type]} · Room ${esc(o.room_number)}`
+    : o.order_type === 'delivery' && o.delivery_address ? `${TYPE_LABEL[o.order_type]} · ${esc(o.delivery_address)}` : TYPE_LABEL[o.order_type];
   return `
     <div class="confirm-card">
       <div class="check"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -300,6 +419,7 @@ function confirmHtml(o) {
       <div class="confirm-lines">
         ${o.order_items.map((i) => `<div><span>${i.quantity} &times; ${esc(i.item_name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
         ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
+        ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
         <div><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
       </div>
       <p style="font-size:13px;color:#6b6357;margin-bottom:18px;">This page updates automatically as the kitchen works on your order. Payment is collected when you receive it.</p>
@@ -394,8 +514,12 @@ async function init() {
   const form = $('checkout');
   form.addEventListener('submit', onSubmit);
   form.addEventListener('change', (e) => {
-    if (e.target.name === 'order_type') $('room-field').hidden = e.target.value !== 'room_delivery';
+    if (e.target.name === 'order_type') {
+      $('room-field').hidden = e.target.value !== 'room_delivery';
+      syncDeliveryUi();
+    }
   });
+  $('pin-gps').addEventListener('click', useMyLocation);
   form.addEventListener('input', (e) => {
     const f = e.target.closest('.field');
     if (f?.classList.contains('invalid')) f.classList.remove('invalid');
@@ -405,7 +529,9 @@ async function init() {
   $('cart-close').addEventListener('click', closeCart);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCart(); });
 
+  await loadDeliveryCfg();
   await loadCatalog();
+  syncDeliveryUi();
 
   // Live price/menu updates: realtime, plus a refresh on focus and every minute as a safety net.
   const refresh = debounce(() => loadCatalog({ silent: true }), 400);

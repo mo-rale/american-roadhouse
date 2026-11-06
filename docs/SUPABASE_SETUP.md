@@ -113,3 +113,7 @@ Add-ons and discounts have no dashboard screens, and the ordering page has no di
 
 - **Price is optional.** An item without a price is listed as "Ask for today's price" and cannot be ordered online until it has one.
 - **Stock is optional.** Leave it empty to not track an item. When set, every order subtracts from it (the database locks the item so two customers cannot take the last portion), an item at 0 shows as sold out, customers see "Only N left" at 5 or fewer, and cancelling an order puts its portions back (reopening a cancelled order takes them out again). Click the stock figure in the Menu tab to change it quickly; the "Low or out" filter lists items at 5 or fewer.
+
+## Delivery orders
+
+Run `supabase/migrations/0017_delivery_orders.sql` in the SQL Editor. It adds a `delivery` order type with a delivery address (the ordering page offers Delivery instead of Pickup) and replaces `place_order` with a version that takes the address. Old pickup orders keep working and still show as Pickup. It also adds the `delivery_settings` table (base fee, km covered, fee per extra km, farthest distance, road factor, restaurant location) and stores the fee, distance and map pin on each order; the fee is calculated inside `place_order`, not in the browser. Run it before publishing the website change: until it is applied, Delivery orders will be refused. After that, open the staff dashboard, go to **Delivery fee**, and set the restaurant's location and your rates (until the location is set, no fee is charged).

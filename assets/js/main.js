@@ -29,6 +29,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  /* Skip link for keyboard and screen-reader users */
+  (function () {
+    var target = document.querySelector('main') || document.querySelector('.hero, .page-hero, .hero-slider, section');
+    if (!target) return;
+    if (!target.id) target.id = 'main-content';
+    target.setAttribute('tabindex', '-1');
+    var a = document.createElement('a');
+    a.className = 'skip-link'; a.href = '#' + target.id; a.textContent = 'Skip to content';
+    document.body.insertBefore(a, document.body.firstChild);
+  })();
+
   /* Sticky nav compaction */
   const nav = document.getElementById('site-nav');
   const onScroll = () => {
