@@ -173,7 +173,16 @@ async function loadDeliveryCfg() {
     state.cfg = data || null;
   } catch { state.cfg = null; }
 }
-const pinMap = { map: null, marker: null, loading: null };
+const pinMap = { map: null, marker: null, loading: null, limit: null };
+// The map may be created while hidden (mobile drawer) or before the layout settles, so re-measure and show the whole delivery area.
+function refitPinMap() {
+  const go = () => {
+    if (!pinMap.map) return;
+    pinMap.map.invalidateSize();
+    if (pinMap.limit) pinMap.map.fitBounds(pinMap.limit.getBounds(), { padding: [26, 26] });
+  };
+  setTimeout(go, 60); setTimeout(go, 400);
+}
 function setPin(lat, lng) {
   const st = $('pin-status');
   if (!cfgReady()) {
@@ -208,7 +217,7 @@ function loadLeaflet() {
   return pinMap.loading;
 }
 async function initPinMap() {
-  if (pinMap.map) { setTimeout(() => pinMap.map.invalidateSize(), 50); return; }
+  if (pinMap.map) { refitPinMap(); return; }
   try { await loadLeaflet(); } catch { pinMap.loading = null; $('pin-status').textContent = 'The map could not load. Try "Use my current location".'; return; }
   if (pinMap.map) return;
   const L = window.L;
@@ -220,10 +229,12 @@ async function initPinMap() {
     const rf = Number(state.cfg.road_factor);
     const limit = L.circle(start, { radius: (Number(state.cfg.max_km) * 1000) / rf, color: '#B8893A', weight: 2, dashArray: '6 6', fillColor: '#B8893A', fillOpacity: 0.07, interactive: false }).addTo(map);
     if (Number(state.cfg.base_km) > 0 && Number(state.cfg.base_km) < Number(state.cfg.max_km) && Number(state.cfg.base_fee) > 0) {
-      L.circle(start, { radius: (Number(state.cfg.base_km) * 1000) / rf, color: '#2f6b3a', weight: 1.5, fillColor: '#2f6b3a', fillOpacity: 0.08, interactive: false }).addTo(map);
+      L.circle(start, { radius: (Number(state.cfg.base_km) * 1000) / rf, color: '#1f7a3a', weight: 3, fillColor: '#2f9e4f', fillOpacity: 0.2, interactive: false }).addTo(map);
+      edgeLabel(L, map, start, (Number(state.cfg.base_km) * 1000) / rf, `${Number(state.cfg.base_km)} km`, '#1f7a3a');
     }
-    L.circleMarker(start, { radius: 7, color: '#fff', weight: 2, fillColor: '#14110E', fillOpacity: 1, interactive: false }).bindTooltip('American Roadhouse', { permanent: true, direction: 'top', offset: [0, -6] }).addTo(map);
-    map.fitBounds(limit.getBounds(), { padding: [8, 8] });
+    edgeLabel(L, map, start, (Number(state.cfg.max_km) * 1000) / rf, `${Number(state.cfg.max_km)} km`, '#8a6320');
+    L.circleMarker(start, { radius: 7, color: '#fff', weight: 2, fillColor: '#14110E', fillOpacity: 1, interactive: false }).bindTooltip('American Roadhouse', { permanent: true, direction: 'bottom', offset: [0, 6] }).addTo(map);
+    pinMap.limit = limit;
     const key = L.control({ position: 'bottomleft' });
     key.onAdd = () => {
       const d = L.DomUtil.create('div', 'pin-key');
@@ -238,7 +249,12 @@ async function initPinMap() {
   map.on('click', (e) => place(e.latlng));
   marker.on('dragend', () => place(marker.getLatLng()));
   if (state.pin) { marker.setLatLng([state.pin.lat, state.pin.lng]); marker.setOpacity(1); }
-  setTimeout(() => map.invalidateSize(), 50);
+  refitPinMap();
+}
+// A small distance label on the top edge of a circle.
+function edgeLabel(L, map, centre, radiusM, text, colour) {
+  const at = [centre[0] + radiusM / 111320, centre[1]];
+  L.marker(at, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'ring-label', html: `<span style="background:#fff;color:${colour};border:1.5px solid ${colour};">${text}</span>`, iconSize: [0, 0] }) }).addTo(map);
 }
 let autoTried = false;
 // Picking Delivery (or opening the checkout with Delivery selected) pins the customer's current location once, automatically.
@@ -254,7 +270,7 @@ function useMyLocation({ auto = false } = {}) {
   navigator.geolocation.getCurrentPosition(async (pos) => {
     await initPinMap();
     const { latitude: lat, longitude: lng } = pos.coords;
-    if (pinMap.marker) { pinMap.marker.setLatLng([lat, lng]); pinMap.marker.setOpacity(1); pinMap.map.setView([lat, lng], 16); }
+    if (pinMap.marker) { pinMap.marker.setLatLng([lat, lng]); pinMap.marker.setOpacity(1); }
     setPin(lat, lng);
   }, () => {
     st.textContent = auto ? 'Location is off. Tap the map to drop the pin where we should deliver.' : 'We could not get your location. Tap the map to drop the pin instead.';
@@ -491,7 +507,7 @@ async function subscribeMyOrders(uid) {
 }
 
 /* ---------- cart drawer (mobile) ---------- */
-function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); }
+function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); if (isDelivery()) refitPinMap(); }
 function closeCart() { $('cart').classList.remove('open'); document.body.style.overflow = ''; }
 
 /* ---------- init ---------- */

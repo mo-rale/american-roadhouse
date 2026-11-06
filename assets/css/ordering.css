@@ -391,4 +391,4 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .pin-key span{ display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:-2px; margin-right:4px; }
 .pin-key .k-out{ border:2px dashed #B8893A; background:rgba(184,137,58,.12); }
 .pin-key .k-in{ border:2px solid #2f6b3a; background:rgba(47,107,58,.12); }
-
+.ring-label span{ position:absolute; transform:translate(-50%,-50%); padding:1px 6px; border-radius:10px; font:700 11px/1.4 Inter,sans-serif; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.25); }
