@@ -443,3 +443,20 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .o-thumbbtn{ flex:none; padding:0; border:0; background:none; border-radius:8px; cursor:zoom-in; line-height:0; }
 .o-thumbbtn:hover .o-thumb{ filter:brightness(1.08); }
 .o-thumbbtn:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
+
+/* The total and the order button stay in view while the order panel scrolls */
+.place-bar{ position:sticky; bottom:-1px; z-index:3; background:var(--white); margin:10px -2px 0; padding:12px 2px 2px; border-top:1px solid var(--line-soft); }
+.place-bar::before{ content:""; position:absolute; left:0; right:0; top:-26px; height:26px; pointer-events:none; background:linear-gradient(to bottom, rgba(255,255,255,0), var(--white)); }
+.place-total{ display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin-bottom:8px; }
+.place-total .price{ font-size:20px; }
+.place-note{ font-size:12.5px; color:#8a8378; margin:10px 0 0; text-align:center; }
+
+/* confirmation before an order is placed or changed */
+.cf-dlg{ width:min(460px,94vw); }
+.cf-lines{ max-height:34vh; overflow:auto; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); padding:8px 0; font-size:14.5px; }
+.cf-lines div{ display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
+.cf-total{ display:flex; justify-content:space-between; align-items:baseline; margin-top:12px; font-size:16px; }
+.cf-total .price{ font-size:22px; }
+.cf-where{ margin:10px 0 0; font-size:13.5px; color:#6b6357; line-height:1.5; }
+.cf-actions{ display:flex; gap:10px; margin-top:18px; }
+.cf-actions .btn{ flex:1; justify-content:center; }

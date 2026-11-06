@@ -324,6 +324,7 @@ function renderCart() {
     $('t-km').textContent = state.pin?.km != null ? `(${state.pin.km.toFixed(1)} km)` : '';
   }
   $('t-total').textContent = peso(q.total);
+  $('t-total2').textContent = peso(q.total);
 
   updatePlaceBtn();
   const fab = $('cart-fab');
@@ -397,15 +398,49 @@ async function ensureSession() {
   return anon.session;
 }
 
+// A short summary of what is about to be sent, so the customer can check it first.
+function askConfirm(form) {
+  const editing = Boolean(state.edit);
+  const lines = cartLines();
+  const fee = editing ? state.edit.fee : deliveryFee();
+  const total = localSubtotal() + (fee || 0);
+  const type = form.order_type.value;
+  $('cf-title').textContent = editing ? `Save changes to order #${state.edit.number}?` : 'Place your order?';
+  $('cf-sub').textContent = editing ? 'Your order will be updated for the kitchen.' : 'Please check your order before we send it to the kitchen.';
+  $('cf-lines').innerHTML = lines.map(({ it, qty }) => `<div><span>${qty} &times; ${esc(it.name)}</span><span class="price">${peso(Number(it.price) * qty)}</span></div>`).join('')
+    + (fee ? `<div><span>Delivery fee</span><span class="price">${peso(fee)}</span></div>` : '');
+  $('cf-total').textContent = peso(total);
+  let where = '';
+  if (!editing) {
+    where = type === 'delivery' ? `Delivery to: ${form.delivery_address.value.trim()}`
+      : type === 'room_delivery' ? `To your room: ${form.room_number.value.trim()}` : 'Dine in';
+    where += ` · ${form.name.value.trim()} · ${form.phone.value.trim()}`;
+  }
+  $('cf-where').textContent = where;
+  $('cf-yes').textContent = editing ? 'Yes, save changes' : 'Yes, place order';
+  return new Promise((resolve) => {
+    const dlg = $('confirm-dlg');
+    let answer = false;
+    const done = (v) => { answer = v; dlg.close(); };
+    $('cf-yes').onclick = () => done(true);
+    $('cf-no').onclick = () => done(false);
+    dlg.onclick = (e) => { if (e.target === dlg) done(false); };
+    dlg.onclose = () => resolve(answer);
+    dlg.showModal();
+    $('cf-yes').focus();
+  });
+}
+
 async function onSubmit(e) {
   e.preventDefault();
   const form = e.currentTarget;
   const errBox = $('form-error');
   errBox.classList.remove('show');
   if (!state.cart.size) return;
-  if (state.edit) { await saveEdit(form); return; }
+  if (state.edit) { if (await askConfirm(form)) await saveEdit(form); return; }
   if (outOfRange()) { updatePlaceBtn(); return; }
   if (!validateForm(form)) return;
+  if (!(await askConfirm(form))) return;
 
   const btn = $('place-btn');
   state.placing = true;
