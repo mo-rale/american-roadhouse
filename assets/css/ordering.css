@@ -475,3 +475,14 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .in-cart{ font-size:12.5px; color:#2f6b3a; font-weight:600; margin-right:8px; align-self:center; white-space:nowrap; }
 .dish .controls{ display:flex; align-items:center; justify-content:flex-end; }
 .cf-lines .o-extra, .mo-lines .o-extra, .confirm-lines .o-extra{ display:block; font-size:12.5px; font-weight:600; color:#70512D; margin-top:1px; }
+
+/* search the menu */
+.menu-search{ position:relative; margin-bottom:14px; }
+.menu-search svg{ position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#8a8378; pointer-events:none; }
+.menu-search input{ width:100%; height:48px; padding:0 44px 0 44px; border:1px solid var(--line); border-radius:12px; background:var(--white); font:inherit; font-size:15.5px; color:var(--ink); }
+.menu-search input::-webkit-search-cancel-button{ display:none; }
+.menu-search input:focus{ outline:2px solid var(--brass); outline-offset:1px; border-color:var(--brass); }
+.menu-search button{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:0; border-radius:50%; background:#ece6da; color:#3a342c; font-size:20px; line-height:1; cursor:pointer; }
+.menu-search button[hidden]{ display:none; }
+.search-note{ margin:0 0 14px; font-size:13.5px; color:#6b6357; }
+mark.hit{ background:#f3dfae; color:inherit; border-radius:3px; padding:0 1px; }

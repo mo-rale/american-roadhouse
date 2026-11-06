@@ -272,7 +272,7 @@ function showTab(tab) {
   S.tab = tab;
   S.rng = { orders: {}, inquiries: {}, history: {} };
   S.isub = S.isub || 'booking';
-  S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
+  S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.ractive = ''; S.rxprice = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
   document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'sections' || tab === 'extras' ? 'menu' : tab))));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
@@ -770,9 +770,11 @@ function renderResource(key) {
     $('st-panel').innerHTML = `${menuSubtabs(key)}<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
-          <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>
-          <select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
+        ${key === 'menu' || key === 'extras' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
+          <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
+        ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
+        ${key === 'extras' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
+          <select id="r-xprice" class="st-select" aria-label="Filter by price"><option value="">Any price</option><option value="paid">Paid</option><option value="free">Free</option></select>` : ''}
         ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
       ${cfg.note ? `<p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">${esc(cfg.note)}</p>` : ''}
@@ -781,7 +783,9 @@ function renderResource(key) {
   const q = (S.rq || '').toLowerCase().trim();
   const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || r.category_id === S.rcat)
     && (!S.rvenue || r.categories?.venue === S.rvenue)
-    && (S.rstock !== 'low' || isLowStock(r)) && (S.rstock !== 'untracked' || r.stock == null));
+    && (S.rstock !== 'low' || isLowStock(r)) && (S.rstock !== 'untracked' || r.stock == null)
+    && (S.ractive !== 'on' || r.is_active) && (S.ractive !== 'off' || r.is_active === false)
+    && (S.rxprice !== 'free' || Number(r.price) === 0) && (S.rxprice !== 'paid' || Number(r.price) > 0));
   const body = $('r-body');
   if (!currentRows.length) {
     body.innerHTML = `<div class="empty"><strong>No ${esc(cfg.noun)}s yet</strong>${canWrite ? `Use “Add ${esc(cfg.noun)}” to create the first one.` : ''}</div>`;
@@ -1558,6 +1562,8 @@ function init() {
     if (e.target.id === 'r-cat') { S.rcat = e.target.value; renderResource(S.tab); }
     if (e.target.id === 'r-venue') { S.rvenue = e.target.value; renderResource(S.tab); }
     if (e.target.id === 'r-stock') { S.rstock = e.target.value; renderResource(S.tab); }
+    if (e.target.id === 'r-active') { S.ractive = e.target.value; renderResource(S.tab); }
+    if (e.target.id === 'r-xprice') { S.rxprice = e.target.value; renderResource(S.tab); }
   });
   $('st-panel').addEventListener('input', (e) => {
     if (e.target.id === 'o-search') { S.orderSearch = e.target.value; renderOrders(); }

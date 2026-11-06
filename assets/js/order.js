@@ -25,6 +25,7 @@ const state = {
   edit: null,                 // { id, number, fee, orig: Map(itemId -> qty), stash, notes } while changing a placed order
   far: null,                  // km of a pin that is beyond the delivery limit (blocks ordering)
   placing: false,
+  query: '',                  // what the customer typed in the dish search box
 };
 
 /* ---------- cart persistence ---------- */
@@ -162,9 +163,29 @@ const priceLine = (it) => {
 function renderMenu() {
   const root = $('menu-root');
   root.setAttribute('aria-busy', 'false');
-  const sections = state.venues[state.venue];
+  const words = state.query.toLowerCase().split(/\s+/).filter(Boolean);
+  const searching = words.length > 0;
+  let sections = state.venues[state.venue];
+  if (searching) {
+    // search both menus at once: a dish matches when every word is in its name, its description or its section name
+    const all = [...state.venues.main, ...state.venues.roofdeck.map((s) => ({ ...s, title: `${s.title} · Roof Deck` }))];
+    sections = all.map((s) => ({ ...s, items: s.items.filter((it) => { const hay = `${it.name} ${it.description || ''} ${s.title}`.toLowerCase(); return words.every((w) => hay.includes(w)); }) }))
+      .filter((s) => s.items.length);
+  }
+  $('venue-tabs').hidden = searching;
   renderVenueTabs();
   renderChips(sections);
+
+  if (searching) {
+    const n = sections.reduce((t, s) => t + s.items.length, 0);
+    if (!n) {
+      root.innerHTML = `<div class="empty"><strong>No dishes match &ldquo;${esc(state.query)}&rdquo;</strong>Try another word, like &ldquo;chicken&rdquo; or &ldquo;pasta&rdquo;, or
+        <button type="button" class="link-btn" id="search-reset">clear the search</button>.</div>`;
+      $('search-reset')?.addEventListener('click', clearSearch);
+      return;
+    }
+    root.dataset.note = `${n} dish${n === 1 ? '' : 'es'} found for “${state.query}” in both menus.`;
+  }
 
   if (!sections.length) {
     root.innerHTML = '<div class="empty"><strong>The menu is being updated</strong>No dishes are available to order right now. Please check back soon or call 0915 875 4860.</div>';
@@ -175,7 +196,7 @@ function renderMenu() {
     ? `<div class="banner info">Online prices for these dishes aren&rsquo;t set yet, so please ask your server. You can
         <button type="button" class="link-btn" data-venue="roofdeck">order from the Roof Deck menu</button> right now.</div>`
     : '';
-  root.innerHTML = note + sections.map((s) => `
+  root.innerHTML = note + (searching ? `<p class="search-note">${esc(root.dataset.note)}</p>` : '') + sections.map((s) => `
     <section class="cat-section" id="sec-${esc(s.id)}" aria-labelledby="h-${esc(s.id)}">
       <h2 id="h-${esc(s.id)}">${esc(s.title)}</h2>
       ${s.items.length ? `<div class="dish-grid">${s.items.map((it) => `
@@ -793,6 +814,18 @@ async function onLookup(e) {
   }
 }
 
+/* ---------- search the menu ---------- */
+function setSearch(v) {
+  state.query = v.trim().slice(0, 60);
+  $('menu-q-clear').hidden = !state.query;
+  renderMenu();
+}
+function clearSearch() {
+  $('menu-q').value = '';
+  setSearch('');
+  $('menu-q').focus();
+}
+
 /* ---------- photo preview ---------- */
 function openPreview(id) {
   const it = state.items.get(id);
@@ -856,6 +889,9 @@ async function init() {
     }
   });
   $('pin-gps').addEventListener('click', useMyLocation);
+  $('menu-q').addEventListener('input', debounce((e) => setSearch(e.target.value), 140));
+  $('menu-q').addEventListener('keydown', (e) => { if (e.key === 'Escape') clearSearch(); });
+  $('menu-q-clear').addEventListener('click', clearSearch);
   // tapping a dish photo opens a larger preview; the X, the Close button, a tap outside or Escape closes it
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-preview]'); if (b) openPreview(b.dataset.preview); });
   $('confirm-root').addEventListener('click', (e) => { if (e.target.closest('#order-edit') && state.confirmId) startEdit(state.confirmId); });

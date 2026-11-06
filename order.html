@@ -85,6 +85,11 @@
 
     <div id="shop" class="shop-layout">
       <div>
+        <div class="menu-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="menu-q" placeholder="Search dishes (for example pizza, chicken, coffee)" aria-label="Search dishes" autocomplete="off" maxlength="60">
+          <button type="button" id="menu-q-clear" aria-label="Clear search" hidden>&times;</button>
+        </div>
         <div class="venue-tabs" id="venue-tabs" role="tablist" aria-label="Choose a restaurant">
           <button type="button" class="venue-btn" role="tab" data-venue="main" aria-selected="true"><span>Main</span><span class="venue-sub">Western &amp; Filipino Cuisine</span></button>
           <button type="button" class="venue-btn" role="tab" data-venue="roofdeck" aria-selected="false"><span>Roof Deck</span><span class="venue-sub">Filipino Favorites</span></button>
