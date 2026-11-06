@@ -287,13 +287,14 @@ const ago = (iso) => {
   return fmtDate(iso);
 };
 
-// Alert sound for a new order or inquiry (and the preview when Sound is switched on).
-let alertAudio = null;
-function beep() {
+// Alert sounds: a ding for a new order, a notification tone for a new inquiry (and the preview when Sound is switched on).
+const SOUNDS = { order: 'assets/sounds/the_price_is_right_ding.mp3', inquiry: 'assets/sounds/inquiry_notification.mp3' };
+const alertAudio = {};
+function beep(kind = 'order') {
   try {
-    alertAudio = alertAudio || new Audio('assets/sounds/the_price_is_right_ding.mp3');
-    alertAudio.currentTime = 0;
-    alertAudio.play().catch(() => { /* the browser blocks sound until the page has been clicked once */ });
+    const a = alertAudio[kind] = alertAudio[kind] || new Audio(SOUNDS[kind] || SOUNDS.order);
+    a.currentTime = 0;
+    a.play().catch(() => { /* the browser blocks sound until the page has been clicked once */ });
   } catch { /* audio not available */ }
 }
 
@@ -474,7 +475,7 @@ async function subscribeOrders() {
       if (payload.eventType === 'INSERT') {
         S.fresh.add(payload.new.id);
         toast(`New ${KIND_LABEL[payload.new.kind].toLowerCase()} from ${payload.new.full_name}`);
-        if (S.sound) beep();
+        if (S.sound) beep('inquiry');
       }
       refreshInquiries();
     });
@@ -580,11 +581,15 @@ function renderInquiries() {
   if (!$('i-body')) {
     $('st-panel').innerHTML = `<div class="subtabs" id="i-sub" role="tablist" aria-label="Inquiry type"></div>
       <div class="st-toolbar"><div class="chips" id="i-chips" role="group" aria-label="Filter inquiries"></div>
-      <div class="tool-right"><input type="search" id="i-search" class="st-search" placeholder="Search name or phone" aria-label="Search inquiries" value="${esc(S.iq || '')}"></div></div>
+      <div class="tool-right"><input type="search" id="i-search" class="st-search" placeholder="Search name or phone" aria-label="Search inquiries" value="${esc(S.iq || '')}">
+        <button type="button" class="btn-xs" id="isound-btn" data-sound="1"></button></div></div>
       <div id="rng-inquiries">${rangeBar('inquiries')}</div>${purgeBar('inquiries')}
       <div id="i-body"></div>`;
   }
   renderInqSubtabs();
+  const isb = $('isound-btn');
+  isb.textContent = S.sound ? 'Sound: on' : 'Sound: off';
+  isb.setAttribute('aria-pressed', String(S.sound));
   const counts = {};
   const scoped = inqScope();
   scoped.forEach((i) => { counts[i.status] = (counts[i.status] || 0) + 1; });
@@ -1492,8 +1497,8 @@ function init() {
     else if (t.dataset.sound) {
       S.sound = !S.sound;
       try { localStorage.setItem('ar_sound', S.sound ? '1' : '0'); } catch { /* ignore */ }
-      if (S.sound) beep();
-      renderOrders();
+      if (S.sound) beep(S.tab === 'inquiries' ? 'inquiry' : 'order');
+      if (S.tab === 'inquiries') renderInquiries(); else renderOrders();
     }
     else if (t.dataset.new) openDialog(S.tab, null);
     else if (t.dataset.edit) openDialog(S.tab, currentRows.find((r) => r.id === t.dataset.edit));
