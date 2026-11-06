@@ -19,6 +19,7 @@ const state = {
   channels: [],
   cfg: null,                  // delivery fee settings
   pin: null,                  // { lat, lng, km, fee } for the delivery pin
+  edit: null,                 // { id, number, fee, orig: Map(itemId -> qty), stash, notes } while changing a placed order
   far: null,                  // km of a pin that is beyond the delivery limit (blocks ordering)
   placing: false,
 };
@@ -31,6 +32,7 @@ function loadCart() {
   } catch { /* storage unavailable or corrupt: start empty */ }
 }
 function saveCart() {
+  if (state.edit) return;       // an order being edited is not the saved cart
   try { localStorage.setItem(CART_KEY, JSON.stringify([...state.cart])); } catch { /* ignore */ }
 }
 
@@ -53,12 +55,11 @@ async function loadCatalog({ silent = false } = {}) {
 
     state.categories = cats.data;
     const visibleCats = new Set(cats.data.map((c) => c.id));
-    const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => ({
-      ...i,
-      price: i.price == null ? null : Number(i.price),
-      stock: i.stock == null ? null : Number(i.stock),
-      is_available: Boolean(i.is_available) && (i.stock == null || i.stock > 0),
-    }));
+    const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => {
+      const own = state.edit?.orig.get(i.id) || 0;                       // portions this order already holds are not "taken" from it
+      const stock = i.stock == null ? null : Number(i.stock) + own;
+      return { ...i, price: i.price == null ? null : Number(i.price), stock, is_available: Boolean(i.is_available) && (stock == null || stock > 0) };
+    });
 
     const venues = { main: [], roofdeck: [] };
     for (const c of cats.data) {
@@ -312,12 +313,13 @@ function renderCart() {
     </div>`).join('');
 
   const sub = localSubtotal();
-  const fee = deliveryFee();
+  const fee = state.edit ? state.edit.fee : deliveryFee();
   const q = { subtotal: sub, total: sub + (fee || 0) };
   $('t-subtotal').textContent = peso(q.subtotal);
   if (lines.length && !$('checkout').hidden) autoLocate();
-  $('t-fee-row').hidden = !isDelivery() || !cfgReady();
-  if (isDelivery() && cfgReady()) {
+  $('t-fee-row').hidden = state.edit ? !(state.edit.fee > 0) : (!isDelivery() || !cfgReady());
+  if (state.edit) { $('t-fee').textContent = peso(state.edit.fee); $('t-km').textContent = ''; }
+  else if (isDelivery() && cfgReady()) {
     $('t-fee').textContent = fee == null ? 'Pin your location' : peso(fee);
     $('t-km').textContent = state.pin?.km != null ? `(${state.pin.km.toFixed(1)} km)` : '';
   }
@@ -331,13 +333,13 @@ function renderCart() {
 }
 
 // Ordering is blocked while the pin is outside the delivery limit.
-const outOfRange = () => isDelivery() && cfgReady() && state.far != null;
+const outOfRange = () => !state.edit && isDelivery() && cfgReady() && state.far != null;
 function updatePlaceBtn() {
   const btn = $('place-btn'), msg = $('range-msg');
   if (!btn || state.placing) return;
   const blocked = outOfRange();
   btn.disabled = blocked;
-  btn.textContent = blocked ? 'Outside our delivery area' : 'Place Order';
+  btn.textContent = blocked ? 'Outside our delivery area' : state.edit ? 'Save changes' : 'Place Order';
   if (msg) {
     msg.hidden = !blocked;
     if (blocked) msg.textContent = `Your pin is about ${state.far.toFixed(1)} km away and we deliver up to ${Number(state.cfg.max_km)} km. Move the pin closer, or choose Dine in or call 0915 875 4860.`;
@@ -401,6 +403,7 @@ async function onSubmit(e) {
   const errBox = $('form-error');
   errBox.classList.remove('show');
   if (!state.cart.size) return;
+  if (state.edit) { await saveEdit(form); return; }
   if (outOfRange()) { updatePlaceBtn(); return; }
   if (!validateForm(form)) return;
 
@@ -459,6 +462,7 @@ function stepsHtml(status) {
     .map((s, i) => `<span class="${i <= idx ? 'done' : ''}">${STATUS_LABEL[s]}</span>`).join('')}</div>`;
 }
 
+const canEdit = (o) => ['pending', 'preparing'].includes(o.status);
 function confirmHtml(o) {
   const where = o.order_type === 'room_delivery' ? `${TYPE_LABEL[o.order_type]} · Room ${esc(o.room_number)}`
     : o.order_type === 'delivery' && o.delivery_address ? `${TYPE_LABEL[o.order_type]} · ${esc(o.delivery_address)}` : TYPE_LABEL[o.order_type];
@@ -476,8 +480,12 @@ function confirmHtml(o) {
         ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
         <div><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
       </div>
-      <p style="font-size:13px;color:#6b6357;margin-bottom:18px;">This page updates automatically as the kitchen works on your order. Payment is collected when you receive it.</p>
-      <button type="button" class="btn btn-outline" id="order-more">Order something else</button>
+      <p style="font-size:13px;color:#6b6357;margin-bottom:18px;">This page updates automatically as the kitchen works on your order. You can change it until it is ready. Payment is collected when you receive it.</p>
+      ${canEdit(o) ? '' : '<p class="confirm-locked">This order can no longer be changed online. Please call 0915 875 4860 if you need something.</p>'}
+      <div class="confirm-actions">
+        ${canEdit(o) ? '<button type="button" class="btn btn-primary" id="order-edit">Edit order</button>' : ''}
+        <button type="button" class="btn btn-outline" id="order-more">Order something else</button>
+      </div>
     </div>`;
 }
 
@@ -527,6 +535,88 @@ async function subscribeMyOrders(uid) {
   );
 }
 
+/* ---------- edit a placed order (until the kitchen marks it Ready) ---------- */
+async function startEdit(orderId) {
+  try {
+    const o = await fetchOrder(orderId);
+    if (!canEdit(o)) { toast(`Order #${o.order_number} is already ${STATUS_LABEL[o.status]}, so it can no longer be changed.`, 'error'); if (state.confirmId) showConfirmation(orderId); return; }
+    const form = $('checkout');
+    state.edit = {
+      id: o.id, number: o.order_number, fee: Number(o.delivery_fee) || 0,
+      orig: new Map(o.order_items.filter((i) => i.menu_item_id).map((i) => [i.menu_item_id, i.quantity])),
+      stash: new Map(state.cart), notes: form.notes.value,
+    };
+    state.cart = new Map(state.edit.orig);
+    form.notes.value = o.notes || '';
+    form.classList.add('editing');
+    $('details-legend').textContent = 'NOTES';
+    $('edit-text').textContent = `Editing order #${o.order_number}. Change your dishes, then save.`;
+    $('edit-banner').hidden = false;
+    state.confirmId = null;
+    $('confirm-root').hidden = true; $('confirm-root').innerHTML = '';
+    $('shop').hidden = false;
+    $('my-orders').open && $('my-orders').close();
+    await loadCatalog({ silent: true });          // recounts stock with this order's own portions, and trims anything that is gone
+    renderCart();
+    openCart();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    state.edit = null;
+    toast(friendlyError(err), 'error');
+  }
+}
+
+function endEdit() {
+  const form = $('checkout');
+  const e = state.edit;
+  if (!e) return;
+  state.edit = null;
+  state.cart = e.stash;
+  form.notes.value = e.notes;
+  form.classList.remove('editing');
+  $('details-legend').textContent = 'YOUR DETAILS';
+  $('edit-banner').hidden = true;
+  saveCart();
+}
+
+async function cancelEdit() {
+  const id = state.edit?.id;
+  endEdit();
+  closeCart();
+  await loadCatalog({ silent: true });
+  renderCart();
+  if (id) await showConfirmation(id);
+}
+
+async function saveEdit(form) {
+  const errBox = $('form-error');
+  const btn = $('place-btn');
+  state.placing = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Saving…';
+  try {
+    await ensureSession();
+    const id = state.edit.id, number = state.edit.number;
+    const { error } = await supabase.rpc('update_order', { p_order_id: id, p_items: cartPayload(), p_notes: form.notes.value });
+    if (error) throw error;
+    endEdit();
+    closeCart();
+    await loadCatalog({ silent: true });
+    renderCart();
+    await showConfirmation(id);
+    toast(`Order #${number} updated.`);
+  } catch (err) {
+    errBox.textContent = friendlyError(err);
+    errBox.classList.add('show');
+    if (/no longer available|so it can no longer be changed/i.test(errBox.textContent)) loadCatalog({ silent: true });
+    errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } finally {
+    state.placing = false;
+    btn.disabled = false;
+    updatePlaceBtn();
+  }
+}
+
 /* ---------- "Your orders": look up recent orders by phone number ---------- */
 const fmtWhen = (iso) => new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 function myOrderHtml(o) {
@@ -541,6 +631,7 @@ function myOrderHtml(o) {
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="tot"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
     </div>
+    ${o.mine && canEdit(o) ? `<button type="button" class="btn btn-outline btn-sm mo-edit" data-edit-order="${esc(o.id)}">Edit order</button>` : ''}
   </article>`;
 }
 
@@ -633,6 +724,9 @@ async function init() {
   $('pin-gps').addEventListener('click', useMyLocation);
   // tapping a dish photo opens a larger preview; the X, the Close button, a tap outside or Escape closes it
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-preview]'); if (b) openPreview(b.dataset.preview); });
+  $('confirm-root').addEventListener('click', (e) => { if (e.target.closest('#order-edit') && state.confirmId) startEdit(state.confirmId); });
+  $('mo-results').addEventListener('click', (e) => { const b = e.target.closest('[data-edit-order]'); if (b) startEdit(b.dataset.editOrder); });
+  $('edit-cancel').addEventListener('click', cancelEdit);
   $('photo-close').addEventListener('click', () => $('photo-dlg').close());
   $('photo-close2').addEventListener('click', () => $('photo-dlg').close());
   $('photo-dlg').addEventListener('click', (e) => { if (e.target === $('photo-dlg')) $('photo-dlg').close(); });

@@ -25,8 +25,8 @@
 .cat-section h2{ font-size: 26px; margin-bottom: 16px; }
 
 /* ---- Dish cards ---- */
-.dish-grid{ display:grid; gap:18px; grid-template-columns:1fr; }
-@media (min-width:640px){ .dish-grid{ grid-template-columns: 1fr 1fr; } }
+.dish-grid{ display:grid; gap:18px; grid-template-columns:minmax(0,1fr); }
+@media (min-width:640px){ .dish-grid{ grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
 .dish{ display:flex; gap:14px; background:var(--white); border:1px solid var(--line-soft); border-radius: var(--radius);
   padding:14px; box-shadow: var(--shadow-card); transition: transform .2s ease; }
 .dish img{ width:96px; height:96px; object-fit:cover; border-radius:8px; flex:none; background: var(--linen-deep); }
@@ -422,3 +422,24 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .photo-row{ display:flex; justify-content:space-between; gap:12px; align-items:baseline; font-size:19px; }
 .photo-cap p{ margin:6px 0 14px; color:#6b6357; font-size:14.5px; line-height:1.5; }
 .photo-cap p:empty{ display:none; }
+
+/* long unbroken descriptions (for example "Lettuce,tomatoes,onion") must wrap instead of pushing the card off the screen */
+.dish{ min-width:0; }
+.dish-body p, .dish-body h3{ overflow-wrap:anywhere; }
+
+/* Editing an order that has already been placed */
+.edit-banner{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.edit-banner[hidden]{ display:none; }
+.checkout.editing [data-edit-hide]{ display:none; }
+.confirm-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+.confirm-locked{ font-size:13px; color:#8a8378; margin:0 0 14px; }
+.mo-order .mo-edit{ margin-top:12px; }
+
+/* product photos on the staff order cards */
+.o-it{ display:flex; align-items:center; gap:10px; min-width:0; }
+.o-it > span:last-child{ min-width:0; overflow-wrap:anywhere; }
+.o-thumb{ width:46px; height:46px; border-radius:8px; object-fit:cover; flex:none; background:#ece6da; }
+.o-items div:has(.o-thumb){ align-items:center; padding:4px 0; }
+.o-thumbbtn{ flex:none; padding:0; border:0; background:none; border-radius:8px; cursor:zoom-in; line-height:0; }
+.o-thumbbtn:hover .o-thumb{ filter:brightness(1.08); }
+.o-thumbbtn:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }

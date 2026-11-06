@@ -76,6 +76,10 @@
 
       <aside id="cart" class="cart" aria-label="Your order">
         <h2>Your Order <button type="button" class="cart-close" id="cart-close" aria-label="Close cart">&times;</button></h2>
+        <div id="edit-banner" class="banner info edit-banner" hidden>
+          <span id="edit-text">Editing your order</span>
+          <button type="button" class="btn btn-outline btn-sm" id="edit-cancel">Cancel changes</button>
+        </div>
         <div id="cart-lines"></div>
         <div id="cart-empty" class="empty"><strong>Your cart is empty</strong>Add something delicious from the menu.</div>
 
@@ -86,7 +90,7 @@
             <div class="grand"><strong>Total</strong><strong class="price" id="t-total"></strong></div>
           </div>
 
-          <fieldset>
+          <fieldset data-edit-hide>
             <legend>HOW WOULD YOU LIKE IT?</legend>
             <div class="opt-row" role="radiogroup">
               <label><input type="radio" name="order_type" value="delivery" checked><span>Delivery</span></label>
@@ -114,18 +118,18 @@
           </fieldset>
 
           <fieldset>
-            <legend>YOUR DETAILS</legend>
-            <div class="field">
+            <legend id="details-legend">YOUR DETAILS</legend>
+            <div class="field" data-edit-hide>
               <label for="f-name">FULL NAME</label>
               <input type="text" id="f-name" name="name" maxlength="80" autocomplete="name" required>
               <div class="err">Please enter your name (at least 2 characters).</div>
             </div>
-            <div class="field">
+            <div class="field" data-edit-hide>
               <label for="f-phone">PHONE NUMBER</label>
               <input type="tel" id="f-phone" name="phone" inputmode="tel" maxlength="20" autocomplete="tel" required>
               <div class="err">Please enter a valid phone number (7&ndash;20 digits).</div>
             </div>
-            <div class="field">
+            <div class="field" data-edit-hide>
               <label for="f-email">EMAIL (OPTIONAL)</label>
               <input type="email" id="f-email" name="email" maxlength="120" autocomplete="email">
               <div class="err">Please enter a valid email address.</div>

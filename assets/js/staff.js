@@ -299,7 +299,7 @@ function beep() {
 
 async function loadOrders() {
   try {
-    const { data, error } = await applyRange(supabase.from('orders').select('*, order_items(*)'), 'orders', 'created_at')
+    const { data, error } = await applyRange(supabase.from('orders').select('*, order_items(*, menu_items(image_url))'), 'orders', 'created_at')
       .order('created_at', { ascending: false }).limit(hasRange('orders') ? 500 : 150);
     if (error) throw error;
     allOrders = data;
@@ -327,10 +327,10 @@ function orderCard(o) {
       ? `<button type="button" class="btn-xs" data-status="pending" data-id="${esc(o.id)}">Reopen order</button>`
       : '<span class="o-meta">Closed. Only an administrator can reopen it.</span>';
   return `<article class="o-card s-${esc(o.status)} ${late ? 'late' : ''} ${S.fresh.has(o.id) ? 'fresh' : ''}" data-oid="${esc(o.id)}">
-    <div class="o-head"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span></div>
+    <div class="o-head"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span>${o.edited_at ? ' <span class="badge" title="The customer changed this order">Edited</span>' : ''}</div>
     <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}${o.delivery_address ? `<br><strong>Deliver to:</strong> ${esc(o.delivery_address)}${o.delivery_lat != null ? ` · <button type="button" class="btn-xs" data-route="${esc(o.id)}">Show route${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</button>` : ''}` : ''}<br>
       <strong>${esc(o.customer_name)}</strong> · <a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></div>
-    <div class="o-items">${o.order_items.map((i) => `<div><span>${i.quantity} × ${esc(i.item_name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
+    <div class="o-items">${o.order_items.map((i) => { const img = i.menu_items?.image_url; return `<div><span class="o-it">${img ? `<button type="button" class="o-thumbbtn" data-photo="${esc(safeImg(img))}" data-name="${esc(i.item_name)}" aria-label="View photo of ${esc(i.item_name)}"><img class="o-thumb" src="${esc(safeImg(img))}" alt="" loading="lazy"></button>` : '<span class="o-thumb o-none" aria-hidden="true"></span>'}<span>${i.quantity} × ${esc(i.item_name)}</span></span><span class="price">${peso(i.line_total)}</span></div>`; }).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="o-total"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div></div>
@@ -462,6 +462,10 @@ async function subscribeOrders() {
       if (payload.eventType === 'INSERT') {
         S.fresh.add(payload.new.id);
         toast(`New order #${payload.new.order_number} from ${payload.new.customer_name}`);
+        if (S.sound) beep();
+      } else if (payload.eventType === 'UPDATE' && payload.new.edited_at && Date.now() - new Date(payload.new.edited_at).getTime() < 8000) {
+        S.fresh.add(payload.new.id);
+        toast(`Order #${payload.new.order_number} was changed by the customer`);
         if (S.sound) beep();
       }
       refreshOrders();
@@ -1327,6 +1331,27 @@ async function onSaveDelivery() {
   }
 }
 
+/* ---------- dish photo preview (tap a photo on an order card) ---------- */
+function showPhoto(url, name) {
+  let dlg = $('photo-dlg');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'photo-dlg';
+    dlg.style.cssText = 'width:min(720px,94vw);max-width:94vw;max-height:92vh;padding:0;border:0;border-radius:16px;overflow:hidden;position:fixed;';
+    dlg.innerHTML = `<button type="button" id="photo-x" aria-label="Close preview" style="position:absolute;right:12px;top:12px;width:42px;height:42px;border:0;border-radius:50%;background:rgba(20,17,14,.78);color:#fff;font-size:28px;line-height:1;cursor:pointer;z-index:2;">&times;</button>
+      <img id="photo-big" alt="" style="display:block;width:100%;max-height:68vh;object-fit:contain;background:#14110e;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;"><strong id="photo-cap" style="font-size:18px;"></strong><button type="button" class="btn-xs" id="photo-close">Close</button></div>`;
+    document.body.appendChild(dlg);
+    $('photo-x').onclick = () => dlg.close();
+    $('photo-close').onclick = () => dlg.close();
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  }
+  $('photo-big').src = url;
+  $('photo-cap').textContent = name;
+  dlg.showModal();
+  $('photo-close').focus();
+}
+
 /* ---------- delivery route map ---------- */
 let leafletReady = null;
 function loadLeaflet() {
@@ -1434,6 +1459,8 @@ function init() {
 
   $('st-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
   $('st-panel').addEventListener('click', (e) => {
+    const ph = e.target.closest('[data-photo]');
+    if (ph) { showPhoto(ph.dataset.photo, ph.dataset.name); return; }
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.rngPreset) {
