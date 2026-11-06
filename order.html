@@ -26,24 +26,8 @@
     <div class="kicker">Roofdeck &amp; Restaurant</div>
     <h1>Order Online</h1>
     <p>Choose your dishes, tell us how you&rsquo;d like to receive them, and our kitchen will start on your order. Prices update live from our menu.</p>
-    <button type="button" class="btn btn-outline-light btn-sm" id="my-orders-btn" style="margin-top:18px;">Your orders</button>
   </div>
 </header>
-
-<dialog id="my-orders" class="mo-dlg" aria-labelledby="mo-title">
-  <div class="mo-head"><h2 id="mo-title">Your orders</h2><button type="button" class="cart-close" id="mo-close" aria-label="Close" style="display:block;">&times;</button></div>
-  <form id="mo-form" novalidate>
-    <div class="field">
-      <label for="mo-phone">PHONE NUMBER USED ON THE ORDER</label>
-      <input type="tel" id="mo-phone" inputmode="tel" autocomplete="tel" placeholder="0915 875 4860" maxlength="20">
-      <div class="err">Please enter the full phone number you used for the order.</div>
-    </div>
-    <div class="form-error" id="mo-error" role="alert"></div>
-    <button type="submit" class="btn btn-primary btn-sm" id="mo-go">Show my orders</button>
-  </form>
-  <p class="mo-note">Shows orders from the last 30 days.</p>
-  <div id="mo-results" aria-live="polite"></div>
-</dialog>
 
 <main class="section" style="padding-top:36px;">
   <div class="container">

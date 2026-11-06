@@ -527,48 +527,6 @@ async function subscribeMyOrders(uid) {
   );
 }
 
-/* ---------- "Your orders": look up recent orders by phone number ---------- */
-const fmtWhen = (iso) => new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-function myOrderHtml(o) {
-  const items = o.items || [];
-  return `<article class="mo-order">
-    <div class="mo-top"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status] || esc(o.status)}</span></div>
-    <div class="mo-meta">${esc(fmtWhen(o.created_at))} · ${TYPE_LABEL[o.order_type] || esc(o.order_type)}</div>
-    ${stepsHtml(o.status)}
-    <div class="mo-lines">
-      ${items.map((i) => `<div><span>${i.qty} &times; ${esc(i.name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
-      ${Number(o.discount_total) > 0 ? `<div><span>Discount</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
-      ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
-      <div class="tot"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
-    </div>
-  </article>`;
-}
-
-async function onLookup(e) {
-  e.preventDefault();
-  const phone = $('mo-phone'), field = phone.closest('.field'), errBox = $('mo-error'), out = $('mo-results');
-  errBox.classList.remove('show');
-  const digits = phone.value.replace(/\D/g, '');
-  const ok = /^[0-9+() -]{7,20}$/.test(phone.value.trim()) && digits.length >= 10;
-  field.classList.toggle('invalid', !ok);
-  if (!ok) { phone.focus(); return; }
-  const btn = $('mo-go');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Looking…';
-  out.innerHTML = '';
-  try {
-    await ensureSession();
-    const { data, error } = await supabase.rpc('lookup_orders', { p_phone: phone.value });
-    if (error) throw error;
-    out.innerHTML = data?.length
-      ? data.map(myOrderHtml).join('')
-      : '<div class="empty"><strong>No orders found</strong>We could not find any orders from the last 30 days for that number. Check the number, or call 0915 875 4860.</div>';
-  } catch (err) {
-    errBox.textContent = friendlyError(err); errBox.classList.add('show');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Show my orders';
-  }
-}
-
 /* ---------- cart drawer (mobile) ---------- */
 function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); if (isDelivery()) refitPinMap(); }
 function closeCart() { $('cart').classList.remove('open'); document.body.style.overflow = ''; }
@@ -616,11 +574,6 @@ async function init() {
     }
   });
   $('pin-gps').addEventListener('click', useMyLocation);
-  $('my-orders-btn').addEventListener('click', () => { $('my-orders').showModal(); $('mo-phone').focus(); });
-  $('mo-close').addEventListener('click', () => $('my-orders').close());
-  $('my-orders').addEventListener('click', (e) => { if (e.target === $('my-orders')) $('my-orders').close(); });
-  $('mo-form').addEventListener('submit', onLookup);
-  $('mo-phone').addEventListener('input', () => $('mo-phone').closest('.field').classList.remove('invalid'));
   form.addEventListener('input', (e) => {
     const f = e.target.closest('.field');
     if (f?.classList.contains('invalid')) f.classList.remove('invalid');
