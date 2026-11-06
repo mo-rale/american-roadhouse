@@ -19,6 +19,8 @@ const state = {
   channels: [],
   cfg: null,                  // delivery fee settings
   pin: null,                  // { lat, lng, km, fee } for the delivery pin
+  far: null,                  // km of a pin that is beyond the delivery limit (blocks ordering)
+  placing: false,
 };
 
 /* ---------- cart persistence ---------- */
@@ -186,15 +188,15 @@ function refitPinMap() {
 function setPin(lat, lng) {
   const st = $('pin-status');
   if (!cfgReady()) {
-    state.pin = { lat, lng, km: null, fee: 0 };
+    state.pin = { lat, lng, km: null, fee: 0 }; state.far = null;
     st.textContent = 'Location pinned. Our team will confirm the delivery fee.'; st.className = 'pin-status ok';
   } else {
     const km = distanceKm(lat, lng), max = Number(state.cfg.max_km);
     if (km > max) {
-      state.pin = null;
+      state.pin = null; state.far = km;
       st.textContent = `That is about ${km.toFixed(1)} km away. We deliver up to ${max} km.`; st.className = 'pin-status bad';
     } else {
-      state.pin = { lat, lng, km, fee: feeForKm(km) };
+      state.pin = { lat, lng, km, fee: feeForKm(km) }; state.far = null;
       st.textContent = `About ${km.toFixed(1)} km from us. Delivery fee ${peso(state.pin.fee)}.`; st.className = 'pin-status ok';
     }
   }
@@ -321,10 +323,25 @@ function renderCart() {
   }
   $('t-total').textContent = peso(q.total);
 
+  updatePlaceBtn();
   const fab = $('cart-fab');
   fab.hidden = !lines.length || !!state.confirmId;
   $('fab-count').textContent = `View order · ${count} item${count === 1 ? '' : 's'}`;
   $('fab-total').textContent = peso(q.total);
+}
+
+// Ordering is blocked while the pin is outside the delivery limit.
+const outOfRange = () => isDelivery() && cfgReady() && state.far != null;
+function updatePlaceBtn() {
+  const btn = $('place-btn'), msg = $('range-msg');
+  if (!btn || state.placing) return;
+  const blocked = outOfRange();
+  btn.disabled = blocked;
+  btn.textContent = blocked ? 'Outside our delivery area' : 'Place Order';
+  if (msg) {
+    msg.hidden = !blocked;
+    if (blocked) msg.textContent = `Your pin is about ${state.far.toFixed(1)} km away and we deliver up to ${Number(state.cfg.max_km)} km. Move the pin closer, or choose Dine in or call 0915 875 4860.`;
+  }
 }
 
 function setQty(id, qty) {
@@ -384,9 +401,11 @@ async function onSubmit(e) {
   const errBox = $('form-error');
   errBox.classList.remove('show');
   if (!state.cart.size) return;
+  if (outOfRange()) { updatePlaceBtn(); return; }
   if (!validateForm(form)) return;
 
   const btn = $('place-btn');
+  state.placing = true;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Placing order…';
   try {
@@ -419,8 +438,10 @@ async function onSubmit(e) {
     if (/no longer available/i.test(errBox.textContent)) loadCatalog({ silent: true });
     errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   } finally {
+    state.placing = false;
     btn.disabled = false;
     btn.textContent = 'Place Order';
+    updatePlaceBtn();
   }
 }
 
