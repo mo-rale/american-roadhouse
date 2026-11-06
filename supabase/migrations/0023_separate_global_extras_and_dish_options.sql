@@ -44,7 +44,7 @@ declare
   v_code text := nullif(btrim(coalesce(p_code, '')), '');
   v_el jsonb; v_id uuid; v_qty int; v_ex_id uuid; m record; ex record;
   v_used jsonb := '{}'::jsonb; v_tot int; v_lines jsonb := '[]'::jsonb;
-  v_subtotal numeric(12,2) := 0; v_bad text := ''; v_unit numeric(12,2);
+  v_subtotal numeric(12,2) := 0; v_bad text := ''; v_unit numeric(12,2); v_size_price numeric(12,2);
   v_ex_total numeric(12,2); v_ex_json jsonb; v_disc public.discounts;
   v_discount numeric(12,2) := 0;
 begin
@@ -66,7 +66,7 @@ begin
       v_bad := v_bad || case when v_bad = '' then '' else ', ' end || case when m.stock > 0 then m.name || ' (only ' || m.stock || ' left)' else m.name end;
       continue;
     end if;
-    v_ex_total := 0; v_ex_json := '[]'::jsonb;
+    v_ex_total := 0; v_size_price := null; v_ex_json := '[]'::jsonb;
     if jsonb_typeof(v_el -> 'extras') = 'array' then
       if jsonb_array_length(v_el -> 'extras') > 20 then raise exception 'INVALID_EXTRAS: Too many options on one dish.'; end if;
       for v_ex_id in select distinct (x.value)::uuid from jsonb_array_elements_text(v_el -> 'extras') as x(value) order by 1 loop
@@ -79,11 +79,16 @@ begin
               from public.menu_options o where o.id = v_ex_id and o.is_active and o.menu_item_id = m.id
           ) x limit 1;
         if not found then raise exception 'ITEM_UNAVAILABLE: An option for % is no longer available. Please update your cart.', m.name; end if;
-        v_ex_total := v_ex_total + ex.price;
+        if ex.option_type = 'size' then
+          if v_size_price is not null then raise exception 'INVALID_OPTIONS: Choose only one size for %.', m.name; end if;
+          v_size_price := ex.price;
+        else
+          v_ex_total := v_ex_total + ex.price;
+        end if;
         v_ex_json := v_ex_json || jsonb_build_array(jsonb_build_object('id', ex.id, 'name', ex.name, 'price', ex.price, 'option_type', ex.option_type));
       end loop;
     end if;
-    v_unit := m.price + v_ex_total; v_subtotal := v_subtotal + v_unit * v_qty;
+    v_unit := coalesce(v_size_price, m.price) + v_ex_total; v_subtotal := v_subtotal + v_unit * v_qty;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object('id', m.id, 'name', m.name, 'price', v_unit, 'qty', v_qty, 'line_total', v_unit * v_qty, 'extras', v_ex_json));
   end loop;
   if v_bad <> '' then raise exception 'ITEM_UNAVAILABLE: % is no longer available. Please update your cart.', v_bad; end if;

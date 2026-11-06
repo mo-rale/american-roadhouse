@@ -56,6 +56,12 @@ const itemOptions = (it) => [
   ...[...state.extras.values()],
   ...(state.optionsByItem.get(it.id) || []),
 ];
+const selectedOptions = (it, ids) => ids.map((id) => itemOptions(it).find((x) => x.id === id)).filter(Boolean);
+const optionUnit = (it, options) => {
+  const size = options.find((x) => x.option_type === 'size');
+  const additions = options.filter((x) => x.option_type !== 'size').reduce((s, x) => s + Number(x.price || 0), 0);
+  return (size ? Number(size.price) : Number(it.price)) + additions;
+};
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
@@ -356,8 +362,8 @@ function cartLines() {
   return [...state.cart].map(([key, ln]) => {
     const it = state.items.get(ln.id);
     if (!it) return null;
-    const extras = ln.extras.map((x) => state.extras.get(x)).filter(Boolean);
-    return { key, it, qty: ln.qty, extras, unit: Number(it.price) + extras.reduce((s, x) => s + Number(x.price), 0) };
+    const extras = selectedOptions(it, ln.extras);
+    return { key, it, qty: ln.qty, extras, unit: optionUnit(it, extras) };
   }).filter(Boolean);
 }
 const localSubtotal = () => cartLines().reduce((s, l) => s + l.unit * l.qty, 0);
@@ -370,7 +376,7 @@ function renderCart() {
   $('cart-lines').innerHTML = lines.map(({ key, it, qty, extras, unit }) => `
     <div class="cart-line">
       <div><div class="name">${esc(it.name)}</div>
-        ${extras.length ? `<div class="cart-extras">${extras.map((x) => `+ ${esc(x.name)} <span>(+${peso(x.price)})</span>`).join('<br>')}</div>` : ''}
+        ${extras.length ? `<div class="cart-extras">${extras.map((x) => `${x.option_type === 'size' ? '' : '+ '}${esc(x.name)} <span>(${x.option_type === 'size' ? peso(x.price) : `+${peso(x.price)}`})</span>`).join('<br>')}</div>` : ''}
         <div class="unit">${peso(unit)} each</div></div>
       <div class="price">${peso(unit * qty)}</div>
       <div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
@@ -455,20 +461,20 @@ function openExtras(itemId) {
   const list = itemOptions(it);
   let qty = 1;
   $('ex-title').textContent = it.name;
-  $('ex-base').textContent = `${peso(it.price)} each. Pick any extras you would like.`;
+  $('ex-base').textContent = `${peso(it.price)} base price. Choose a size, flavor, or extras.`;
   const groups = [['size', 'Size', 'radio'], ['flavor', 'Flavor', 'radio'], ['extra', 'Extras', 'checkbox']];
   $('ex-list').innerHTML = groups.map(([type, label, control]) => {
     const opts = list.filter((x) => (x.option_type || 'extra') === type);
     if (!opts.length) return '';
-    return `<fieldset class="ex-group"><legend>${label}</legend>${opts.map((x) => `<label class="ex-opt"><input type="${control}" name="ex-${type}" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('')}</fieldset>`;
+    return `<fieldset class="ex-group"><legend>${label}</legend>${opts.map((x) => `<label class="ex-opt"><input type="${control}" name="ex-${type}" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>${type === 'size' ? peso(x.price) : `+${peso(x.price)}`}</b></label>`).join('')}</fieldset>`;
   }).join('');
   const chosen = () => [...$('ex-list').querySelectorAll('input:checked')].map((i) => i.value);
   const refresh = () => {
-    const extra = chosen().reduce((s, id) => s + Number(state.extras.get(id)?.price || 0), 0);
+    const unit = optionUnit(it, chosen().map((id) => list.find((x) => x.id === id)).filter(Boolean));
     $('ex-q').textContent = qty;
     $('ex-dec').disabled = qty <= 1;
     $('ex-inc').disabled = qty >= room;
-    $('ex-add').textContent = `Add to order · ${peso((Number(it.price) + extra) * qty)}`;
+    $('ex-add').textContent = `Add to order · ${peso(unit * qty)}`;
   };
   const dlg = $('extras-dlg');
   $('ex-list').onchange = refresh;

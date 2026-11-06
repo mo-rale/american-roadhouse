@@ -143,7 +143,7 @@ const RES = {
       { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This size or flavor is offered only for the selected dish.' },
       { key: 'option_type', label: 'Type', type: 'select', required: true, options: () => [['size', 'Size'], ['flavor', 'Flavor']] },
       { key: 'name', label: 'Name customers see', type: 'text', required: true, max: 80 },
-      { key: 'price', label: 'Price adjustment (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for the base size or flavor.' },
+      { key: 'price', label: 'Price (PHP)', type: 'money0', hint: 'For Size, this replaces the dish base price. For Flavor, this is added to the selected size price.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first within the type.' },
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
     ],
