@@ -335,7 +335,7 @@ function orderCard(o) {
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="o-total"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div></div>
     ${o.notes ? `<div class="o-note"><strong>Customer note:</strong> ${esc(o.notes)}</div>` : ''}
-    <div class="o-actions">${actions}</div></article>`;
+    <div class="o-actions">${actions}${isAdmin() ? ` <button type="button" class="btn-xs danger" data-del-order="${esc(o.id)}">Delete</button>` : ''}</div></article>`;
 }
 
 function renderOrders() {
@@ -408,6 +408,25 @@ async function cancelOrder(id) {
   if (!o) return;
   const ok = await confirmDialog(`Cancel order #${o.order_number}?`, `${o.customer_name} will see this order as cancelled.`, 'Cancel order');
   if (ok) setStatus(id, 'cancelled');
+}
+
+// Administrators can delete any order, in any status. Always asks first, because it cannot be undone.
+async function deleteOrder(id) {
+  const o = allOrders.find((x) => x.id === id);
+  if (!o || !isAdmin()) return;
+  const active = ['pending', 'preparing', 'ready'].includes(o.status);
+  const ok = await confirmDialog(
+    `Delete order #${o.order_number}?`,
+    `${o.customer_name} · ${peso(o.total)} · ${STATUS_LABEL[o.status]}. ${active ? 'This order is still active, and the customer will no longer see it. ' : ''}It will be permanently deleted and cannot be recovered. To keep a record, cancel it instead.`,
+    'Delete permanently');
+  if (!ok) return;
+  document.querySelectorAll(`.o-card[data-oid="${CSS.escape(id)}"] button`).forEach((b) => (b.disabled = true));
+  const { error } = await supabase.rpc('admin_delete_order', { p_id: id });
+  if (error) { toast(friendlyError(error), 'error'); renderOrders(); return; }
+  allOrders = allOrders.filter((x) => x.id !== id);
+  toast(`Order #${o.order_number} deleted.`);
+  updateBadges();
+  renderOrders();
 }
 
 const refreshOrders = debounce(() => loadOrders(), 250);
@@ -1442,6 +1461,7 @@ function init() {
     else if (t.dataset.hmore) { S.hlimit += 30; renderHistory(); }
     else if (t.dataset.status) setStatus(t.dataset.id, t.dataset.status);
     else if (t.dataset.cancelOrder) cancelOrder(t.dataset.cancelOrder);
+    else if (t.dataset.delOrder) deleteOrder(t.dataset.delOrder);
     else if (t.dataset.sound) {
       S.sound = !S.sound;
       try { localStorage.setItem('ar_sound', S.sound ? '1' : '0'); } catch { /* ignore */ }
