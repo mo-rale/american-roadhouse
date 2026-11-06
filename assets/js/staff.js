@@ -6,7 +6,7 @@ import {
 } from './shop-common.js';
 
 const $ = (id) => document.getElementById(id);
-const S = { profile: null, tab: 'orders', orderFilter: 'active', fresh: new Set(), channel: null, categories: [], sections: [] };
+const S = { profile: null, tab: 'orders', orderFilter: 'active', fresh: new Set(), channel: null, categories: [], sections: [], menuItems: [] };
 S.rng = { orders: {}, inquiries: {}, history: {} };
 const RANGE_RELOAD = { orders: () => loadOrders(), inquiries: () => loadInquiries(), history: () => loadHistory() };
 const RANGE_RENDER = { orders: () => renderOrders(), inquiries: () => renderInquiries(), history: () => renderHistory() };
@@ -115,16 +115,18 @@ const RES = {
     },
   },
   extras: {
-    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, categories(name, venue)', admin: false, order: ['sort_order', 'name'],
-    note: 'Paid add-ons for every dish in a section, for example "Extra mozzarella cheese" on the Pizza section. Customers tick them when adding a dish; the price is added to the dish and the kitchen sees the extra on the order.',
+    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['sort_order', 'name'],
+    note: 'Options belong to one dish. Use the group label to identify options such as Size, Flavor, or Extra; customers see them when adding that dish.',
     columns: [
       ['Extra', (r) => esc(r.name)],
-      ['Section', (r) => esc(r.categories ? `${VENUE_LABEL[r.categories.venue] || ''} · ${r.categories.name}` : '—')],
+      ['Dish', (r) => esc(r.menu_items?.name || '—')],
+      ['Group', (r) => esc(r.option_group || 'Extra')],
       ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
-      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]), hint: 'The extra is offered on every dish in this section.' },
+      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This option is offered only for the selected dish.' },
+      { key: 'option_group', label: 'Option group', type: 'select', required: true, options: () => [['Size', 'Size'], ['Flavor', 'Flavor'], ['Extra', 'Extra']], hint: 'Helps customers understand whether this is a size, flavor, or add-on.' },
       { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
       { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
@@ -754,6 +756,9 @@ async function ensureCategories() {
   const { data, error } = await supabase.from('categories').select('id, name, venue').order('venue').order('sort_order').order('name');
   if (error) throw error;
   S.categories = data;
+  const items = await supabase.from('menu_items').select('id, name, category_id, categories(name, venue)').order('name');
+  if (items.error) throw items.error;
+  S.menuItems = items.data;
 }
 
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
@@ -781,8 +786,8 @@ function renderResource(key) {
       <div id="r-body"></div>`;
   }
   const q = (S.rq || '').toLowerCase().trim();
-  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || r.category_id === S.rcat)
-    && (!S.rvenue || r.categories?.venue === S.rvenue)
+  const rows = currentRows.filter((r) => (!q || rowText(r).includes(q)) && (!S.rcat || (r.category_id || r.menu_items?.category_id) === S.rcat)
+    && (!S.rvenue || (r.categories?.venue || r.menu_items?.categories?.venue) === S.rvenue)
     && (S.rstock !== 'low' || isLowStock(r)) && (S.rstock !== 'untracked' || r.stock == null)
     && (S.ractive !== 'on' || r.is_active) && (S.ractive !== 'off' || r.is_active === false)
     && (S.rxprice !== 'free' || Number(r.price) === 0) && (S.rxprice !== 'paid' || Number(r.price) > 0));

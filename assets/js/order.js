@@ -14,8 +14,8 @@ const state = {
   venues: { main: [], roofdeck: [] },
   venue: 'main',              // Main is the default, as on the Restaurant page
   cart: new Map(),            // line key -> { id, qty, extras: [extra ids] } (the key is the dish id plus its extras)
-  extras: new Map(),          // extra id -> { id, category_id, name, price }
-  extrasBySection: new Map(), // section id -> its extras, in order
+  extras: new Map(),          // extra id -> { id, menu_item_id, option_group, name, price }
+  extrasByItem: new Map(),    // dish id -> its extras, in order
   extrasOk: true,
   loaded: false,
   confirmId: null,
@@ -52,7 +52,7 @@ const isOrderable = (it) => it.price != null && it.is_available;      // is_avai
 const maxQty = (it) => Math.min(50, it.stock ?? 50);
 const lineKey = (id, extras) => (extras.length ? `${id}|${[...extras].sort().join(',')}` : id);
 const itemQty = (id) => [...state.cart.values()].filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0);
-const itemExtras = (it) => state.extrasBySection.get(it.category_id) || [];
+const itemExtras = (it) => state.extrasByItem.get(it.id) || [];
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
@@ -70,8 +70,8 @@ async function loadCatalog({ silent = false } = {}) {
     state.extrasOk = !extras.error;
     const exList = (extras.data || []).map((e) => ({ ...e, price: Number(e.price) }));
     state.extras = new Map(exList.map((e) => [e.id, e]));
-    state.extrasBySection = new Map();
-    exList.forEach((e) => { if (!state.extrasBySection.has(e.category_id)) state.extrasBySection.set(e.category_id, []); state.extrasBySection.get(e.category_id).push(e); });
+    state.extrasByItem = new Map();
+    exList.forEach((e) => { if (!state.extrasByItem.has(e.menu_item_id)) state.extrasByItem.set(e.menu_item_id, []); state.extrasByItem.get(e.menu_item_id).push(e); });
     const visibleCats = new Set(cats.data.map((c) => c.id));
     const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => {
       const own = state.edit?.orig.get(i.id) || 0;                       // portions this order already holds are not "taken" from it
@@ -451,7 +451,7 @@ function openExtras(itemId) {
   let qty = 1;
   $('ex-title').textContent = it.name;
   $('ex-base').textContent = `${peso(it.price)} each. Pick any extras you would like.`;
-  $('ex-list').innerHTML = list.map((x) => `<label class="ex-opt"><input type="checkbox" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('');
+  $('ex-list').innerHTML = list.map((x) => `<label class="ex-opt"><input type="checkbox" value="${esc(x.id)}"><span><small>${esc(x.option_group || 'Extra')}</small>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('');
   const chosen = () => [...$('ex-list').querySelectorAll('input:checked')].map((i) => i.value);
   const refresh = () => {
     const extra = chosen().reduce((s, id) => s + Number(state.extras.get(id)?.price || 0), 0);
