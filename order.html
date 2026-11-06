@@ -30,6 +30,18 @@
   </div>
 </header>
 
+<dialog id="extras-dlg" class="mo-dlg cf-dlg" aria-labelledby="ex-title">
+  <h2 id="ex-title" style="font-size:24px;margin:0 0 4px;"></h2>
+  <p id="ex-base" class="mo-note" style="margin:0 0 12px;"></p>
+  <div id="ex-list" class="ex-list"></div>
+  <div class="ex-qty"><span>Quantity</span>
+    <div class="qty" role="group" aria-label="Quantity"><button type="button" id="ex-dec" aria-label="One less">&minus;</button><output id="ex-q">1</output><button type="button" id="ex-inc" aria-label="One more">+</button></div></div>
+  <div class="cf-actions">
+    <button type="button" class="btn btn-outline" id="ex-cancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="ex-add">Add to order</button>
+  </div>
+</dialog>
+
 <dialog id="confirm-dlg" class="mo-dlg cf-dlg" aria-labelledby="cf-title">
   <h2 id="cf-title" style="font-size:24px;margin:0 0 6px;">Place your order?</h2>
   <p id="cf-sub" class="mo-note" style="margin:0 0 12px;"></p>

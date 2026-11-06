@@ -13,7 +13,10 @@ const state = {
   items: new Map(),           // every orderable or listed item, by id
   venues: { main: [], roofdeck: [] },
   venue: 'main',              // Main is the default, as on the Restaurant page
-  cart: new Map(),            // item id -> qty
+  cart: new Map(),            // line key -> { id, qty, extras: [extra ids] } (the key is the dish id plus its extras)
+  extras: new Map(),          // extra id -> { id, category_id, name, price }
+  extrasBySection: new Map(), // section id -> its extras, in order
+  extrasOk: true,
   loaded: false,
   confirmId: null,
   channels: [],
@@ -28,7 +31,11 @@ const state = {
 function loadCart() {
   try {
     const raw = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-    raw.forEach(([id, q]) => { if (typeof id === 'string' && q >= 1 && q <= 50) state.cart.set(id, q | 0); });
+    raw.forEach(([k, v]) => {
+      if (typeof k !== 'string') return;
+      if (typeof v === 'number') { if (v >= 1 && v <= 50) state.cart.set(k, { id: k, qty: v | 0, extras: [] }); }       // an older saved cart
+      else if (v && typeof v.id === 'string' && v.qty >= 1 && v.qty <= 50) state.cart.set(k, { id: v.id, qty: v.qty | 0, extras: Array.isArray(v.extras) ? v.extras.filter((x) => typeof x === 'string') : [] });
+    });
   } catch { /* storage unavailable or corrupt: start empty */ }
 }
 function saveCart() {
@@ -42,18 +49,28 @@ function saveCart() {
 const LOW_STOCK = 5;
 const isOrderable = (it) => it.price != null && it.is_available;      // is_available already accounts for stock
 const maxQty = (it) => Math.min(50, it.stock ?? 50);
+const lineKey = (id, extras) => (extras.length ? `${id}|${[...extras].sort().join(',')}` : id);
+const itemQty = (id) => [...state.cart.values()].filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0);
+const itemExtras = (it) => state.extrasBySection.get(it.category_id) || [];
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
   try {
-    const [cats, items] = await Promise.all([
+    const [cats, items, extras] = await Promise.all([
       supabase.from('categories').select('*').eq('is_visible', true).order('sort_order').order('name'),
       supabase.from('menu_items').select('*').eq('is_visible', true).order('sort_order').order('name'),
+      supabase.from('menu_extras').select('*').eq('is_active', true).order('sort_order').order('name'),
     ]);
     if (cats.error) throw cats.error;
     if (items.error) throw items.error;
 
     state.categories = cats.data;
+    // extras are optional: if they cannot be read (not set up yet) the menu still works without them
+    state.extrasOk = !extras.error;
+    const exList = (extras.data || []).map((e) => ({ ...e, price: Number(e.price) }));
+    state.extras = new Map(exList.map((e) => [e.id, e]));
+    state.extrasBySection = new Map();
+    exList.forEach((e) => { if (!state.extrasBySection.has(e.category_id)) state.extrasBySection.set(e.category_id, []); state.extrasBySection.get(e.category_id).push(e); });
     const visibleCats = new Set(cats.data.map((c) => c.id));
     const list = items.data.filter((i) => visibleCats.has(i.category_id)).map((i) => {
       const own = state.edit?.orig.get(i.id) || 0;                       // portions this order already holds are not "taken" from it
@@ -83,15 +100,30 @@ async function loadCatalog({ silent = false } = {}) {
   }
 }
 
-// Drop cart lines whose item was hidden, removed, unpriced or sold out, and trim quantities to the stock left.
+// Drop cart lines whose item was hidden, removed, unpriced or sold out, drop extras that are no longer offered,
+// and trim quantities to the stock left (stock is shared by all of a dish's lines).
 function reconcileCart() {
   let changed = 0;
-  for (const [id, qty] of [...state.cart]) {
-    const it = state.items.get(id);
-    if (!it || !isOrderable(it)) { state.cart.delete(id); changed++; }
-    else if (qty > maxQty(it)) { state.cart.set(id, maxQty(it)); changed++; }
+  for (const [key, ln] of [...state.cart]) {
+    const it = state.items.get(ln.id);
+    if (!it || !isOrderable(it)) { state.cart.delete(key); changed++; continue; }
+    if (!state.extrasOk) continue;
+    const valid = new Set(itemExtras(it).map((x) => x.id));
+    const ex = ln.extras.filter((x) => valid.has(x));
+    if (ex.length !== ln.extras.length) {
+      state.cart.delete(key);
+      const nk = lineKey(ln.id, ex), cur = state.cart.get(nk);
+      if (cur) cur.qty += ln.qty; else state.cart.set(nk, { ...ln, extras: ex });
+      changed++;
+    }
   }
-  if (changed) { saveCart(); toast('Your cart was updated because some items are no longer available in that quantity.', 'error'); }
+  const used = new Map();
+  for (const [key, ln] of [...state.cart]) {
+    const room = Math.max(0, maxQty(state.items.get(ln.id)) - (used.get(ln.id) || 0));
+    if (ln.qty > room) { ln.qty = room; changed++; }
+    if (ln.qty <= 0) state.cart.delete(key); else used.set(ln.id, (used.get(ln.id) || 0) + ln.qty);
+  }
+  if (changed) { saveCart(); toast('Your cart was updated because some items or extras are no longer available.', 'error'); }
 }
 
 function renderVenueTabs() {
@@ -108,12 +140,16 @@ function renderChips(sections) {
 function dishControls(it) {
   if (it.price == null) return '<span class="badge">Ask your server</span>';
   if (!it.is_available) return '<span class="badge bad">Sold out</span>';
-  const q = state.cart.get(it.id) || 0;
+  if (itemExtras(it).length) {                       // dishes with paid extras always go through the "customize" step
+    const n = itemQty(it.id);
+    return `${n ? `<span class="in-cart">${n} in order</span>` : ''}<button type="button" class="btn btn-primary btn-add" data-action="custom" data-id="${esc(it.id)}" ${n >= maxQty(it) ? 'disabled' : ''}>${n ? 'Add more' : 'Add'}</button>`;
+  }
+  const q = state.cart.get(it.id)?.qty || 0;
   if (!q) return `<button type="button" class="btn btn-primary btn-add" data-action="add" data-id="${esc(it.id)}">Add</button>`;
   return `<div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
-    <button type="button" data-action="dec" data-id="${esc(it.id)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
+    <button type="button" data-action="dec" data-key="${esc(it.id)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
     <output aria-live="polite">${q}</output>
-    <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${q >= maxQty(it) ? 'disabled' : ''}>+</button></div>`;
+    <button type="button" data-action="inc" data-key="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${q >= maxQty(it) ? 'disabled' : ''}>+</button></div>`;
 }
 
 const priceLine = (it) => {
@@ -291,25 +327,32 @@ function syncDeliveryUi() {
 
 /* ---------- cart ---------- */
 function cartLines() {
-  return [...state.cart].map(([id, qty]) => ({ it: state.items.get(id), qty })).filter((l) => l.it);
+  return [...state.cart].map(([key, ln]) => {
+    const it = state.items.get(ln.id);
+    if (!it) return null;
+    const extras = ln.extras.map((x) => state.extras.get(x)).filter(Boolean);
+    return { key, it, qty: ln.qty, extras, unit: Number(it.price) + extras.reduce((s, x) => s + Number(x.price), 0) };
+  }).filter(Boolean);
 }
-const localSubtotal = () => cartLines().reduce((s, l) => s + Number(l.it.price) * l.qty, 0);
+const localSubtotal = () => cartLines().reduce((s, l) => s + l.unit * l.qty, 0);
 
 function renderCart() {
   const lines = cartLines();
   const count = lines.reduce((s, l) => s + l.qty, 0);
   $('cart-empty').hidden = lines.length > 0;
   $('checkout').hidden = lines.length === 0;
-  $('cart-lines').innerHTML = lines.map(({ it, qty }) => `
+  $('cart-lines').innerHTML = lines.map(({ key, it, qty, extras, unit }) => `
     <div class="cart-line">
-      <div><div class="name">${esc(it.name)}</div><div class="unit">${peso(it.price)} each</div></div>
-      <div class="price">${peso(Number(it.price) * qty)}</div>
+      <div><div class="name">${esc(it.name)}</div>
+        ${extras.length ? `<div class="cart-extras">${extras.map((x) => `+ ${esc(x.name)} <span>(+${peso(x.price)})</span>`).join('<br>')}</div>` : ''}
+        <div class="unit">${peso(unit)} each</div></div>
+      <div class="price">${peso(unit * qty)}</div>
       <div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
-        <button type="button" data-action="dec" data-id="${esc(it.id)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
+        <button type="button" data-action="dec" data-key="${esc(key)}" aria-label="Remove one ${esc(it.name)}">&minus;</button>
         <output>${qty}</output>
-        <button type="button" data-action="inc" data-id="${esc(it.id)}" aria-label="Add one ${esc(it.name)}" ${qty >= maxQty(it) ? 'disabled' : ''}>+</button>
+        <button type="button" data-action="inc" data-key="${esc(key)}" aria-label="Add one ${esc(it.name)}" ${itemQty(it.id) >= maxQty(it) ? 'disabled' : ''}>+</button>
       </div>
-      <button type="button" class="btn-xs danger" data-action="remove" data-id="${esc(it.id)}" style="justify-self:end;" aria-label="Remove ${esc(it.name)} from cart">Remove</button>
+      <button type="button" class="btn-xs danger" data-action="remove" data-key="${esc(key)}" style="justify-self:end;" aria-label="Remove ${esc(it.name)} from cart">Remove</button>
     </div>`).join('');
 
   const sub = localSubtotal();
@@ -347,17 +390,66 @@ function updatePlaceBtn() {
   }
 }
 
-function setQty(id, qty) {
-  const it = state.items.get(id);
-  if (!it || !it.is_available) return;
-  if (qty <= 0) state.cart.delete(id); else state.cart.set(id, Math.min(maxQty(it), qty));
-  saveCart();
-  const card = document.querySelector(`.dish[data-id="${CSS.escape(id)}"] .controls`);
-  if (card) card.innerHTML = dishControls(it);
-  renderCart();
+function refreshCard(itemId) {
+  const it = state.items.get(itemId);
+  const card = document.querySelector(`.dish[data-id="${CSS.escape(itemId)}"] .controls`);
+  if (it && card) card.innerHTML = dishControls(it);
 }
 
-function cartPayload() { return [...state.cart].map(([id, qty]) => ({ id, qty })); }
+// add portions of a dish (with the chosen extras) to the cart; the same dish with the same extras shares one line
+function addLine(id, extras, qty) {
+  const it = state.items.get(id);
+  if (!it || !it.is_available) return 0;
+  const add = Math.min(qty, maxQty(it) - itemQty(id));
+  if (add <= 0) return 0;
+  const key = lineKey(id, extras), cur = state.cart.get(key);
+  if (cur) cur.qty += add; else state.cart.set(key, { id, qty: add, extras: [...extras].sort() });
+  saveCart(); refreshCard(id); renderCart();
+  return add;
+}
+
+function setQty(key, qty) {
+  const ln = state.cart.get(key);
+  if (!ln) return;
+  const it = state.items.get(ln.id);
+  if (!it || !it.is_available) return;
+  if (qty <= 0) state.cart.delete(key);
+  else ln.qty = Math.max(1, Math.min(qty, maxQty(it) - (itemQty(ln.id) - ln.qty)));
+  saveCart(); refreshCard(ln.id); renderCart();
+}
+
+function cartPayload() { return [...state.cart.values()].map((l) => ({ id: l.id, qty: l.qty, extras: l.extras })); }
+
+// the "customize" step for a dish that has paid extras
+function openExtras(itemId) {
+  const it = state.items.get(itemId);
+  if (!it) return;
+  const room = maxQty(it) - itemQty(itemId);
+  if (room <= 0) { toast('You already have all the portions we have left of this dish.', 'error'); return; }
+  const list = itemExtras(it);
+  let qty = 1;
+  $('ex-title').textContent = it.name;
+  $('ex-base').textContent = `${peso(it.price)} each. Pick any extras you would like.`;
+  $('ex-list').innerHTML = list.map((x) => `<label class="ex-opt"><input type="checkbox" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>+${peso(x.price)}</b></label>`).join('');
+  const chosen = () => [...$('ex-list').querySelectorAll('input:checked')].map((i) => i.value);
+  const refresh = () => {
+    const extra = chosen().reduce((s, id) => s + Number(state.extras.get(id)?.price || 0), 0);
+    $('ex-q').textContent = qty;
+    $('ex-dec').disabled = qty <= 1;
+    $('ex-inc').disabled = qty >= room;
+    $('ex-add').textContent = `Add to order · ${peso((Number(it.price) + extra) * qty)}`;
+  };
+  const dlg = $('extras-dlg');
+  $('ex-list').onchange = refresh;
+  $('ex-dec').onclick = () => { qty = Math.max(1, qty - 1); refresh(); };
+  $('ex-inc').onclick = () => { qty = Math.min(room, qty + 1); refresh(); };
+  $('ex-cancel').onclick = () => dlg.close();
+  $('ex-add').onclick = () => { addLine(itemId, chosen(), qty); dlg.close(); toast(`${it.name} added to your order.`); };
+  dlg.onclick = (e) => { if (e.target === dlg) dlg.close(); };
+  refresh();
+  dlg.showModal();
+  $('ex-add').focus();
+}
 
 /* ---------- checkout ---------- */
 const rules = {
@@ -407,7 +499,7 @@ function askConfirm(form) {
   const type = form.order_type.value;
   $('cf-title').textContent = editing ? `Save changes to order #${state.edit.number}?` : 'Place your order?';
   $('cf-sub').textContent = editing ? 'Your order will be updated for the kitchen.' : 'Please check your order before we send it to the kitchen.';
-  $('cf-lines').innerHTML = lines.map(({ it, qty }) => `<div><span>${qty} &times; ${esc(it.name)}</span><span class="price">${peso(Number(it.price) * qty)}</span></div>`).join('')
+  $('cf-lines').innerHTML = lines.map(({ it, qty, extras, unit }) => `<div><span>${qty} &times; ${esc(it.name)}${extras.map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(unit * qty)}</span></div>`).join('')
     + (fee ? `<div><span>Delivery fee</span><span class="price">${peso(fee)}</span></div>` : '');
   $('cf-total').textContent = peso(total);
   let where = '';
@@ -510,7 +602,7 @@ function confirmHtml(o) {
       <p style="margin-top:6px;"><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span> <span style="font-size:13px;color:#6b6357;">&middot; ${where}</span></p>
       ${stepsHtml(o.status)}
       <div class="confirm-lines">
-        ${o.order_items.map((i) => `<div><span>${i.quantity} &times; ${esc(i.item_name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
+        ${o.order_items.map((i) => `<div><span>${i.quantity} &times; ${esc(i.item_name)}${(i.extras || []).map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
         ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
         ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
         <div><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
@@ -578,10 +670,16 @@ async function startEdit(orderId) {
     const form = $('checkout');
     state.edit = {
       id: o.id, number: o.order_number, fee: Number(o.delivery_fee) || 0,
-      orig: new Map(o.order_items.filter((i) => i.menu_item_id).map((i) => [i.menu_item_id, i.quantity])),
+      orig: new Map(),
       stash: new Map(state.cart), notes: form.notes.value,
     };
-    state.cart = new Map(state.edit.orig);
+    state.cart = new Map();
+    o.order_items.filter((i) => i.menu_item_id).forEach((i) => {
+      state.edit.orig.set(i.menu_item_id, (state.edit.orig.get(i.menu_item_id) || 0) + i.quantity);
+      const ex = (i.extras || []).map((x) => x.id).filter(Boolean);
+      const key = lineKey(i.menu_item_id, ex), cur = state.cart.get(key);
+      if (cur) cur.qty += i.quantity; else state.cart.set(key, { id: i.menu_item_id, qty: i.quantity, extras: ex.sort() });
+    });
     form.notes.value = o.notes || '';
     form.classList.add('editing');
     $('details-legend').textContent = 'NOTES';
@@ -661,7 +759,7 @@ function myOrderHtml(o) {
     <div class="mo-meta">${esc(fmtWhen(o.created_at))} · ${TYPE_LABEL[o.order_type] || esc(o.order_type)}</div>
     ${stepsHtml(o.status)}
     <div class="mo-lines">
-      ${items.map((i) => `<div><span>${i.qty} &times; ${esc(i.name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
+      ${items.map((i) => `<div><span>${i.qty} &times; ${esc(i.name)}${(i.extras || []).map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="tot"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
@@ -738,14 +836,15 @@ async function init() {
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-action]');
     if (!b) return;
-    const { action, id } = b.dataset;
-    const cur = state.cart.get(id) || 0;
-    if (action === 'add') setQty(id, 1);
-    if (action === 'inc') setQty(id, cur + 1);
-    if (action === 'dec') setQty(id, cur - 1);
-    if (action === 'remove') setQty(id, 0);
+    const { action, id, key } = b.dataset;
+    if (action === 'custom') { openExtras(id); return; }
+    if (action === 'add') { addLine(id, [], 1); document.querySelector(`[data-action="inc"][data-key="${CSS.escape(id)}"]`)?.focus(); return; }
+    const cur = state.cart.get(key)?.qty || 0;
+    if (action === 'inc') setQty(key, cur + 1);
+    if (action === 'dec') setQty(key, cur - 1);
+    if (action === 'remove') setQty(key, 0);
     // Controls are re-rendered; put keyboard focus back on the same control.
-    document.querySelector(`[data-action="${action === 'add' ? 'inc' : action}"][data-id="${CSS.escape(id)}"]`)?.focus();
+    document.querySelector(`[data-action="${action}"][data-key="${CSS.escape(key)}"]`)?.focus();
   });
 
   const form = $('checkout');

@@ -460,3 +460,18 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .cf-where{ margin:10px 0 0; font-size:13.5px; color:#6b6357; line-height:1.5; }
 .cf-actions{ display:flex; gap:10px; margin-top:18px; }
 .cf-actions .btn{ flex:1; justify-content:center; }
+.o-extra{ display:block; margin-top:2px; font-size:12.5px; font-weight:600; color:#8B6A3E; line-height:1.35; }
+
+/* extras (paid add-ons) */
+.ex-list{ border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); padding:6px 0; max-height:42vh; overflow:auto; }
+.ex-opt{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; font-size:15px; border-bottom:1px solid var(--line-soft); }
+.ex-opt:last-child{ border-bottom:0; }
+.ex-opt input{ width:20px; height:20px; accent-color:#B8893A; flex:none; }
+.ex-opt span{ flex:1; }
+.ex-opt b{ color:#70512D; font-weight:600; white-space:nowrap; }
+.ex-qty{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:15px; }
+.cart-extras{ font-size:12.5px; color:#70512D; line-height:1.4; margin-top:2px; }
+.cart-extras span{ color:#8a8378; }
+.in-cart{ font-size:12.5px; color:#2f6b3a; font-weight:600; margin-right:8px; align-self:center; white-space:nowrap; }
+.dish .controls{ display:flex; align-items:center; justify-content:flex-end; }
+.cf-lines .o-extra, .mo-lines .o-extra, .confirm-lines .o-extra{ display:block; font-size:12.5px; font-weight:600; color:#70512D; margin-top:1px; }

@@ -114,6 +114,23 @@ const RES = {
       payload.slug = slug;
     },
   },
+  extras: {
+    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, categories(name, venue)', admin: false, order: ['sort_order', 'name'],
+    note: 'Paid add-ons for every dish in a section, for example "Extra mozzarella cheese" on the Pizza section. Customers tick them when adding a dish; the price is added to the dish and the kitchen sees the extra on the order.',
+    columns: [
+      ['Extra', (r) => esc(r.name)],
+      ['Section', (r) => esc(r.categories ? `${VENUE_LABEL[r.categories.venue] || ''} · ${r.categories.name}` : '—')],
+      ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
+    ],
+    toggles: [{ key: 'is_active', label: 'Available' }],
+    fields: [
+      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]), hint: 'The extra is offered on every dish in this section.' },
+      { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
+      { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
+      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
+    ],
+  },
   massage: {
     label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
     note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
@@ -256,7 +273,7 @@ function showTab(tab) {
   S.rng = { orders: {}, inquiries: {}, history: {} };
   S.isub = S.isub || 'booking';
   S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
-  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'sections' ? 'menu' : tab))));
+  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'sections' || tab === 'extras' ? 'menu' : tab))));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
   if (tab === 'orders') return loadOrders();
@@ -331,7 +348,7 @@ function orderCard(o) {
     <div class="o-head"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span>${o.edited_at ? ' <span class="badge" title="The customer changed this order">Edited</span>' : ''}</div>
     <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}${o.delivery_address ? `<br><strong>Deliver to:</strong> ${esc(o.delivery_address)}${o.delivery_lat != null ? ` · <button type="button" class="btn-xs" data-route="${esc(o.id)}">Show route${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</button>` : ''}` : ''}<br>
       <strong>${esc(o.customer_name)}</strong> · <a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></div>
-    <div class="o-items">${o.order_items.map((i) => { const img = i.menu_items?.image_url; return `<div><span class="o-it">${img ? `<button type="button" class="o-thumbbtn" data-photo="${esc(safeImg(img))}" data-name="${esc(i.item_name)}" aria-label="View photo of ${esc(i.item_name)}"><img class="o-thumb" src="${esc(safeImg(img))}" alt="" loading="lazy"></button>` : '<span class="o-thumb o-none" aria-hidden="true"></span>'}<span>${i.quantity} × ${esc(i.item_name)}</span></span><span class="price">${peso(i.line_total)}</span></div>`; }).join('')}
+    <div class="o-items">${o.order_items.map((i) => { const img = i.menu_items?.image_url; return `<div><span class="o-it">${img ? `<button type="button" class="o-thumbbtn" data-photo="${esc(safeImg(img))}" data-name="${esc(i.item_name)}" aria-label="View photo of ${esc(i.item_name)}"><img class="o-thumb" src="${esc(safeImg(img))}" alt="" loading="lazy"></button>` : '<span class="o-thumb o-none" aria-hidden="true"></span>'}<span>${i.quantity} × ${esc(i.item_name)}${(i.extras || []).length ? `<small class="o-extra">${i.extras.map((x) => `+ ${esc(x.name)}`).join('<br>')}</small>` : ''}</span></span><span class="price">${peso(i.line_total)}</span></div>`; }).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
       <div class="o-total"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div></div>
@@ -433,7 +450,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -722,7 +739,7 @@ let currentRows = [];
 async function loadResource(key) {
   const cfg = RES[key];
   try {
-    if (key === 'menu') await ensureCategories();
+    if (key === 'menu' || key === 'extras') await ensureCategories();
     let q = supabase.from(cfg.table).select(cfg.select);
     cfg.order.forEach((c) => (q = q.order(c)));
     const { data, error } = await q;
@@ -741,8 +758,8 @@ async function ensureCategories() {
 
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name].filter(Boolean).join(' ').toLowerCase();
 
-const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections']];
-const menuSubtabs = (key) => (key === 'menu' || key === 'sections'
+const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras']];
+const menuSubtabs = (key) => (key === 'menu' || key === 'sections' || key === 'extras'
   ? `<div class="subtabs" role="tablist" aria-label="Menu">${MENU_SUB.map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
   : '');
 
