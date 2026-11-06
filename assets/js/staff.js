@@ -328,7 +328,7 @@ function orderCard(o) {
       : '<span class="o-meta">Closed. Only an administrator can reopen it.</span>';
   return `<article class="o-card s-${esc(o.status)} ${late ? 'late' : ''} ${S.fresh.has(o.id) ? 'fresh' : ''}" data-oid="${esc(o.id)}">
     <div class="o-head"><span class="num">#${esc(o.order_number)}</span><span class="st st-${esc(o.status)}">${STATUS_LABEL[o.status]}</span></div>
-    <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}${o.delivery_address ? `<br><strong>Deliver to:</strong> ${esc(o.delivery_address)}${o.delivery_lat != null ? ` · <a href="https://www.google.com/maps/dir/?api=1&destination=${esc(o.delivery_lat)},${esc(o.delivery_lng)}" target="_blank" rel="noopener">Open map${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</a>` : ''}` : ''}<br>
+    <div class="o-meta"><span class="${late ? 'late-txt' : ''}">${ago(o.created_at)}</span> · ${TYPE_LABEL[o.order_type]}${o.room_number ? ` · Room ${esc(o.room_number)}` : ''}${o.delivery_address ? `<br><strong>Deliver to:</strong> ${esc(o.delivery_address)}${o.delivery_lat != null ? ` · <button type="button" class="btn-xs" data-route="${esc(o.id)}">Show route${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</button>` : ''}` : ''}<br>
       <strong>${esc(o.customer_name)}</strong> · <a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></div>
     <div class="o-items">${o.order_items.map((i) => `<div><span>${i.quantity} × ${esc(i.item_name)}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
@@ -422,6 +422,7 @@ function refreshTab(tab = S.tab) {
   if (isInqTab(tab)) return loadInquiries();
   if (tab === 'history') return loadHistory();
   if (tab === 'staff') return loadStaff();
+  if (tab === 'delivery') return;   // a settings form: never reload it under someone who is typing
   return loadResource(tab);
 }
 
@@ -1303,6 +1304,93 @@ async function onSaveDelivery() {
   }
 }
 
+/* ---------- delivery route map ---------- */
+let leafletReady = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; js.onload = resolve; js.onerror = () => { leafletReady = null; reject(new Error('map')); };
+    document.head.appendChild(js);
+  });
+  return leafletReady;
+}
+
+async function showRoute(orderId) {
+  const o = allOrders.find((x) => x.id === orderId);
+  if (!o || o.delivery_lat == null) return;
+  let dlg = $('route-dlg');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'route-dlg';
+    dlg.style.cssText = 'width:min(720px,94vw);max-width:94vw;padding:0;border:0;border-radius:14px;overflow:hidden;';
+    dlg.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e7e0d3;">
+        <strong id="route-title"></strong><button type="button" class="btn-xs" id="route-close">Close</button></div>
+      <div id="route-map" style="height:min(60vh,420px);background:#ece6da;"></div>
+      <div style="padding:12px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+        <span id="route-info" style="font-size:14px;"></span><a class="btn btn-primary btn-sm" id="route-gmaps" target="_blank" rel="noopener">Open in Google Maps</a></div>`;
+    document.body.appendChild(dlg);
+    $('route-close').onclick = () => dlg.close();
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  }
+  $('route-title').textContent = `Order #${o.order_number} · ${o.delivery_address || 'Delivery'}`;
+  $('route-info').textContent = 'Finding the route…';
+  dlg.showModal();
+
+  try {
+    if (!S.del) {
+      const { data } = await supabase.from('delivery_settings').select('*').eq('id', 1).maybeSingle();
+      S.del = data;
+    }
+    const sLat = S.del?.store_lat, sLng = S.del?.store_lng;
+    const dest = [Number(o.delivery_lat), Number(o.delivery_lng)];
+    const from = sLat != null ? [Number(sLat), Number(sLng)] : null;
+    $('route-gmaps').href = `https://www.google.com/maps/dir/?api=1${from ? `&origin=${from[0]},${from[1]}` : ''}&destination=${dest[0]},${dest[1]}&travelmode=driving`;
+
+    await loadLeaflet();
+    const L = window.L;
+    if (S.routeMap) { S.routeMap.remove(); S.routeMap = null; }
+    const map = L.map('route-map');
+    S.routeMap = map;
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+    L.marker(dest).addTo(map).bindTooltip('Customer', { permanent: true, direction: 'top' });
+    if (!from) {
+      map.setView(dest, 16);
+      $('route-info').textContent = 'Set the restaurant location in the Delivery fee tab to see the route from the restaurant.';
+      setTimeout(() => map.invalidateSize(), 80);
+      return;
+    }
+    L.circleMarker(from, { radius: 8, color: '#fff', weight: 2, fillColor: '#14110E', fillOpacity: 1 }).addTo(map).bindTooltip('Restaurant', { permanent: true, direction: 'top' });
+    map.fitBounds([from, dest], { padding: [30, 30] });
+    setTimeout(() => { map.invalidateSize(); map.fitBounds([from, dest], { padding: [30, 30] }); }, 80);
+
+    // Road route from the free OpenStreetMap routing service; falls back to a straight line if it is unreachable.
+    let drawn = false;
+    try {
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`);
+      const j = await r.json();
+      const route = j.routes?.[0];
+      if (route) {
+        const line = L.geoJSON(route.geometry, { style: { color: '#1a73e8', weight: 6, opacity: 0.85 } }).addTo(map);
+        map.fitBounds(line.getBounds(), { padding: [30, 30] });
+        const mins = Math.max(1, Math.round(route.duration / 60));
+        $('route-info').innerHTML = `<strong>${(route.distance / 1000).toFixed(1)} km</strong> by road · about <strong>${mins} min</strong> by car`;
+        drawn = true;
+      }
+    } catch { /* handled below */ }
+    if (!drawn) {
+      L.polyline([from, dest], { color: '#1a73e8', weight: 4, dashArray: '8 8' }).addTo(map);
+      $('route-info').textContent = 'Road route unavailable right now. The dashed line is a straight line; use Open in Google Maps for turn-by-turn directions.';
+    }
+  } catch {
+    $('route-info').textContent = 'The map could not load. Use Open in Google Maps.';
+  }
+}
+
 /* ---------- init ---------- */
 function init() {
   if (!isConfigured) {
@@ -1366,6 +1454,7 @@ function init() {
       if (!navigator.geolocation) { toast('This browser cannot share its location.', 'error'); return; }
       navigator.geolocation.getCurrentPosition((p) => { $('d-lat').value = p.coords.latitude.toFixed(6); $('d-lng').value = p.coords.longitude.toFixed(6); toast('Location filled in. Press Save to keep it.'); }, () => toast('Could not get the location. Paste the numbers from Google Maps instead.', 'error'), { enableHighAccuracy: true, timeout: 12000 });
     }
+    else if (t.dataset.route) showRoute(t.dataset.route);
     else if (t.dataset.staffToggle) setStaff(t.dataset.staffToggle, t.dataset.role, t.dataset.active !== 'true');
   });
   $('st-panel').addEventListener('input', (e) => {

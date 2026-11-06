@@ -215,6 +215,23 @@ async function initPinMap() {
   const start = cfgReady() ? [Number(state.cfg.store_lat), Number(state.cfg.store_lng)] : [9.8, 124.55];
   const map = L.map('pin-map', { scrollWheelZoom: false }).setView(start, cfgReady() ? 14 : 12);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  if (cfgReady()) {
+    // the delivery area: straight-line radius = distance limit / road factor (the same maths the fee uses)
+    const rf = Number(state.cfg.road_factor);
+    const limit = L.circle(start, { radius: (Number(state.cfg.max_km) * 1000) / rf, color: '#B8893A', weight: 2, dashArray: '6 6', fillColor: '#B8893A', fillOpacity: 0.07, interactive: false }).addTo(map);
+    if (Number(state.cfg.base_km) > 0 && Number(state.cfg.base_km) < Number(state.cfg.max_km) && Number(state.cfg.base_fee) > 0) {
+      L.circle(start, { radius: (Number(state.cfg.base_km) * 1000) / rf, color: '#2f6b3a', weight: 1.5, fillColor: '#2f6b3a', fillOpacity: 0.08, interactive: false }).addTo(map);
+    }
+    L.circleMarker(start, { radius: 7, color: '#fff', weight: 2, fillColor: '#14110E', fillOpacity: 1, interactive: false }).bindTooltip('American Roadhouse', { permanent: true, direction: 'top', offset: [0, -6] }).addTo(map);
+    map.fitBounds(limit.getBounds(), { padding: [8, 8] });
+    const key = L.control({ position: 'bottomleft' });
+    key.onAdd = () => {
+      const d = L.DomUtil.create('div', 'pin-key');
+      d.innerHTML = `<span class="k-out"></span> We deliver up to ${Number(state.cfg.max_km)} km${Number(state.cfg.base_fee) > 0 && Number(state.cfg.base_km) > 0 ? `<br><span class="k-in"></span> Standard fee within ${Number(state.cfg.base_km)} km` : ''}`;
+      return d;
+    };
+    key.addTo(map);
+  }
   const marker = L.marker(start, { draggable: true, opacity: 0 }).addTo(map);
   pinMap.map = map; pinMap.marker = marker;
   const place = (ll) => { marker.setLatLng(ll); marker.setOpacity(1); setPin(ll.lat, ll.lng); };
