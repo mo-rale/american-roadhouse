@@ -143,7 +143,7 @@ function renderMenu() {
       <h2 id="h-${esc(s.id)}">${esc(s.title)}</h2>
       ${s.items.length ? `<div class="dish-grid">${s.items.map((it) => `
         <article class="dish ${it.price != null && !it.is_available ? 'sold-out' : ''}" data-id="${esc(it.id)}">
-          ${it.image_url ? `<img src="${esc(safeImg(it.image_url))}" alt="${esc(it.name)}" loading="lazy" width="96" height="96">` : ''}
+          ${it.image_url ? `<button type="button" class="dish-img" data-preview="${esc(it.id)}" aria-label="View photo of ${esc(it.name)}"><img src="${esc(safeImg(it.image_url))}" alt="" loading="lazy" width="96" height="96"></button>` : ''}
           <div class="dish-body">
             <h3>${esc(it.name)}</h3>
             ${it.description ? `<p>${esc(it.description)}</p>` : ''}
@@ -569,6 +569,21 @@ async function onLookup(e) {
   }
 }
 
+/* ---------- photo preview ---------- */
+function openPreview(id) {
+  const it = state.items.get(id);
+  if (!it || !it.image_url) return;
+  const dlg = $('photo-dlg');
+  const img = $('photo-img');
+  img.src = safeImg(it.image_url);
+  img.alt = it.name;
+  $('photo-name').textContent = it.name;
+  $('photo-desc').textContent = it.description || '';
+  $('photo-price').textContent = it.price != null ? peso(it.price) : 'Ask for today’s price';
+  dlg.showModal();
+  $('photo-close').focus();
+}
+
 /* ---------- cart drawer (mobile) ---------- */
 function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); if (isDelivery()) refitPinMap(); }
 function closeCart() { $('cart').classList.remove('open'); document.body.style.overflow = ''; }
@@ -616,6 +631,11 @@ async function init() {
     }
   });
   $('pin-gps').addEventListener('click', useMyLocation);
+  // tapping a dish photo opens a larger preview; the X, the Close button, a tap outside or Escape closes it
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-preview]'); if (b) openPreview(b.dataset.preview); });
+  $('photo-close').addEventListener('click', () => $('photo-dlg').close());
+  $('photo-close2').addEventListener('click', () => $('photo-dlg').close());
+  $('photo-dlg').addEventListener('click', (e) => { if (e.target === $('photo-dlg')) $('photo-dlg').close(); });
   $('my-orders-btn').addEventListener('click', () => { $('my-orders').showModal(); $('mo-phone').focus(); });
   $('mo-close').addEventListener('click', () => $('my-orders').close());
   $('my-orders').addEventListener('click', (e) => { if (e.target === $('my-orders')) $('my-orders').close(); });

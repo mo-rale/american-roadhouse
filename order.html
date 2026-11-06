@@ -30,6 +30,16 @@
   </div>
 </header>
 
+<dialog id="photo-dlg" class="photo-dlg" aria-labelledby="photo-name">
+  <button type="button" class="photo-x" id="photo-close" aria-label="Close preview">&times;</button>
+  <img id="photo-img" alt="">
+  <div class="photo-cap">
+    <div class="photo-row"><strong id="photo-name"></strong><span id="photo-price" class="price"></span></div>
+    <p id="photo-desc"></p>
+    <button type="button" class="btn btn-outline btn-sm" id="photo-close2">Close</button>
+  </div>
+</dialog>
+
 <dialog id="my-orders" class="mo-dlg" aria-labelledby="mo-title">
   <div class="mo-head"><h2 id="mo-title">Your recent orders</h2><button type="button" class="cart-close" id="mo-close" aria-label="Close" style="display:block;">&times;</button></div>
   <form id="mo-form" novalidate>
