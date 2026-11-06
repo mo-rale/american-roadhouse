@@ -1246,7 +1246,11 @@ async function loadDelivery() {
       <p class="hint" style="margin:0 0 14px;">Customers who choose Delivery pin their location on a map. The fee is worked out from the distance to the restaurant using the numbers below, and changes apply to new orders straight away.</p>
       ${ready ? '' : '<div class="banner error" style="margin-bottom:14px;">The restaurant location is not set, so no delivery fee is being charged yet. Set it below.</div>'}
       <form id="delivery-form" class="add-staff" novalidate>
-        <div class="field"><label class="chk"><input type="checkbox" id="d-active" ${data.is_active ? 'checked' : ''}> Accept delivery orders</label></div>
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;margin:0 0 18px;background:#fff;border:1px solid #e7e0d3;border-radius:12px;">
+          <input type="checkbox" id="d-active" ${data.is_active ? 'checked' : ''} style="width:20px;height:20px;margin-top:2px;flex:none;accent-color:#B8893A;">
+          <label for="d-active" style="display:block;margin:0;text-transform:none;letter-spacing:0;font-size:15px;font-weight:600;color:#1c1916;cursor:pointer;">Accept delivery orders
+            <span style="display:block;font-weight:400;font-size:13px;color:#6b6357;margin-top:2px;">Switch off to stop new delivery orders (for example when closed or out of riders). Dine in and room orders keep working.</span></label>
+        </div>
         <h3>Restaurant location</h3>
         <div class="add-staff-grid">
           <div class="field"><label for="d-lat">LATITUDE</label><input type="text" inputmode="decimal" id="d-lat" value="${data.store_lat ?? ''}" placeholder="9.8000"><div class="err"></div></div>
