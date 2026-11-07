@@ -538,3 +538,12 @@ mark.hit{ background:#f3dfae; color:inherit; border-radius:3px; padding:0 1px; }
   .tbl.resp td.drag-cell{ display:block; width:auto; text-align:left; padding:0; }
   .tbl.resp td.drag-cell::before{ display:none; }
 }
+
+/* a bouncing "Scroll down" hint at the top of the phone cart; it scrolls away with the page and is back whenever you are at the top */
+.scroll-hint{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin:0 0 14px; padding:10px 14px; border:1px solid var(--brass);
+  border-radius:999px; background:#F6EBD6; color:#5a431f; font:600 13.5px/1.2 var(--sans, 'Inter', sans-serif); cursor:pointer; }
+.scroll-hint[hidden]{ display:none; }
+.scroll-hint svg{ animation:hintArrow 1.3s ease-in-out infinite; flex:none; }
+@keyframes hintArrow{ 0%,100%{ transform:translateY(-2px); opacity:.6; } 50%{ transform:translateY(5px); opacity:1; } }
+@media (min-width:1000px){ .scroll-hint{ display:none !important; } }
+@media (prefers-reduced-motion:reduce){ .scroll-hint svg{ animation:none; } }

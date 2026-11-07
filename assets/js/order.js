@@ -953,8 +953,14 @@ function openPreview(id) {
 }
 
 /* ---------- cart drawer (mobile) ---------- */
-function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); if (isDelivery()) refitPinMap(); }
-function closeCart() { $('cart').classList.remove('open'); document.body.style.overflow = ''; }
+function openCart() { $('cart').classList.add('open'); document.body.style.overflow = 'hidden'; $('cart-close').focus(); if (isDelivery()) refitPinMap(); setTimeout(updateScrollHint, 350); }
+function closeCart() { $('cart').classList.remove('open'); document.body.style.overflow = ''; updateScrollHint(); }
+// a "Scroll down" hint shows while the phone cart has more below it (the form is long)
+function updateScrollHint() {
+  const c = $('cart'), h = $('scroll-hint');
+  if (!c || !h) return;
+  h.hidden = !(c.classList.contains('open') && c.scrollHeight - c.clientHeight > 120);
+}
 
 /* ---------- init ---------- */
 async function init() {
@@ -1029,6 +1035,10 @@ async function init() {
   });
 
   $('cart-fab').addEventListener('click', openCart);
+  $('cart').addEventListener('scroll', updateScrollHint, { passive: true });
+  new MutationObserver(() => setTimeout(updateScrollHint, 60)).observe($('cart'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+  window.addEventListener('resize', updateScrollHint);
+  $('scroll-hint').addEventListener('click', () => $('cart').scrollBy({ top: Math.round($('cart').clientHeight * .7), behavior: 'smooth' }));
   $('cart-close').addEventListener('click', closeCart);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCart(); });
 
