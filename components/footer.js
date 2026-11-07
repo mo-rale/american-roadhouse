@@ -16,7 +16,7 @@ window.AmericanRoadhouseFooter = String.raw`<footer>
       <div>
         <h4>Visit</h4>
         <a href="https://www.google.com/maps/search/?api=1&query=Purok+5+Tugas+Candijay+Bohol+6312" target="_blank" rel="noopener">Purok 5 Tugas, Candijay, Bohol 6312</a>
-        <a href="tel:+639158754860">+63 0915 875 4860</a>
+        <a href="tel:+639158754860">+63 915 875 4860</a>
         <a href="contact.html?tab=booking#forms">Book a Room</a>
         <a href="contact.html?tab=table#forms">Reserve a Table</a>
       </div>
