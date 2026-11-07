@@ -488,6 +488,7 @@ function missingFields() {
     if (cfgReady() && !state.pin && state.far == null) out.push('your location on the map');
   }
   if (type === 'room_delivery' && !form.room_number.value.trim()) out.push('your room number');
+  if (type === 'dine_in' && !form.table_number.value.trim()) out.push('your table number');
   return out;
 }
 
@@ -591,6 +592,7 @@ function validateForm(form) {
     ['f-phone', rules.phone(form.phone.value)],
     ['f-email', rules.email(form.email.value)],
     ['f-room', type !== 'room_delivery' || form.room_number.value.trim().length > 0],
+    ['f-table', type !== 'dine_in' || form.table_number.value.trim().length > 0],
     ['f-address', type !== 'delivery' || form.delivery_address.value.trim().length >= 6],
     ['pin-gps', type !== 'delivery' || !cfgReady() || Boolean(state.pin)],
   ];
@@ -632,7 +634,7 @@ function askConfirm(form) {
   let where = '';
   if (!editing) {
     where = type === 'delivery' ? `Delivery to: ${form.delivery_address.value.trim()}`
-      : type === 'room_delivery' ? `To your room: ${form.room_number.value.trim()}` : type === 'pickup' ? 'Pickup at the restaurant' : 'Dine in';
+      : type === 'room_delivery' ? `To your room: ${form.room_number.value.trim()}` : type === 'pickup' ? 'Pickup at the restaurant' : `Dine in · Table ${form.table_number.value.trim()}`;
     where += ` · ${form.name.value.trim()} · ${form.phone.value.trim()}`;
   }
   $('cf-where').textContent = where;
@@ -672,7 +674,7 @@ async function onSubmit(e) {
       p_phone: form.phone.value,
       p_email: form.email.value,
       p_order_type: form.order_type.value,
-      p_room_number: form.order_type.value === 'room_delivery' ? form.room_number.value : '',
+      p_room_number: form.order_type.value === 'room_delivery' ? form.room_number.value : form.order_type.value === 'dine_in' ? form.table_number.value : '',
       p_notes: form.notes.value,
       p_discount_code: '',
       p_items: cartPayload(),
@@ -719,6 +721,7 @@ function stepsHtml(status) {
 const canEdit = (o) => ['pending', 'preparing'].includes(o.status);
 function confirmHtml(o) {
   const where = o.order_type === 'room_delivery' ? `${TYPE_LABEL[o.order_type]} · Room ${esc(o.room_number)}`
+    : o.order_type === 'dine_in' && o.table_number ? `${TYPE_LABEL[o.order_type]} · Table ${esc(o.table_number)}`
     : o.order_type === 'delivery' && o.delivery_address ? `${TYPE_LABEL[o.order_type]} · ${esc(o.delivery_address)}` : TYPE_LABEL[o.order_type];
   return `
     <div class="confirm-card">
@@ -993,6 +996,7 @@ async function init() {
   form.addEventListener('change', (e) => {
     if (e.target.name === 'order_type') {
       $('room-field').hidden = e.target.value !== 'room_delivery';
+      $('table-field').hidden = e.target.value !== 'dine_in';
       syncDeliveryUi();
     }
   });
