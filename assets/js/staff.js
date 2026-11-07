@@ -23,10 +23,8 @@ function applyRange(q, key, col) {
 
 function rangeBar(key) {
   const r = S.rng[key] || {};
-  const sorts = key === 'orders'
-    ? [['', 'Default order'], ['desc', 'Newest first'], ['asc', 'Oldest first']]
-    : [['desc', 'Newest first'], ['asc', 'Oldest first']];
-  const sel = r.sort || (key === 'orders' ? '' : 'desc');
+  const sorts = [['desc', 'Newest first'], ['asc', 'Oldest first']];
+  const sel = r.sort || 'desc';
   const preset = (id, label) => `<button type="button" class="btn-xs" data-rng-preset="${id}" data-key="${key}">${label}</button>`;
   return `<div class="range-row" role="group" aria-label="Date range and sorting">
     <label>From <input type="date" data-rng="${key}" data-f="from" value="${esc(r.from || '')}" ${r.to ? `max="${esc(r.to)}"` : ''}></label>
@@ -563,7 +561,7 @@ function renderOrders() {
     ? ['pending', 'preparing', 'ready'].includes(o.status) : o.status === S.orderFilter);
   const list = sortRows(allOrders.filter((o) => inFilter(o) && (!q ||
     String(o.order_number).includes(q) || o.customer_name.toLowerCase().includes(q) || o.customer_phone.includes(q))),
-  'orders', 'created_at', S.orderFilter === 'active' ? 'asc' : 'desc');
+  'orders', 'created_at', 'desc');
 
   const body = $('o-body');
   if (!list.length) {
