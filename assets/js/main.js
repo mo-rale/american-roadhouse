@@ -1,6 +1,23 @@
 // American Roadhouse - shared interactions
 document.addEventListener('DOMContentLoaded', async () => {
 
+  /* Shared footer component (components/footer.js) */
+  const footerSlot = document.getElementById('shared-footer');
+  if (footerSlot) {
+    try {
+      let footerMarkup = window.AmericanRoadhouseFooter;
+      if (!footerMarkup) {
+        const response = await fetch('components/footer.js');
+        if (!response.ok) throw new Error(`Footer request failed: ${response.status}`);
+        const source = await response.text();
+        footerMarkup = source.match(/window\.AmericanRoadhouseFooter\s*=\s*String\.raw`([\s\S]*)`;\s*$/)?.[1];
+      }
+      if (footerMarkup) footerSlot.outerHTML = footerMarkup;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   /* Shared navbar component */
   const navbarSlot = document.getElementById('shared-navbar');
   if (navbarSlot) {
