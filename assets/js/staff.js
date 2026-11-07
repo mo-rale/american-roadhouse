@@ -56,6 +56,8 @@ const onOff = (v, a = 'Yes', b = 'No') => `<span class="badge ${v ? '' : 'bad'}"
 
 /* ---------- resource definitions (drive the generic CRUD tables) ---------- */
 const VENUE_LABEL = { main: 'Main', roofdeck: 'Roof Deck' };
+// menu sections grouped by venue, so the picker is short headings with their sections under them
+const sectionGroups = () => Object.keys(VENUE_LABEL).map((v) => [VENUE_LABEL[v] + ' menu', S.categories.filter((c) => c.venue === v).map((c) => [c.id, c.name])]).filter(([, items]) => items.length);
 const LOW_STOCK = 5;   // "Low" badge and the low-stock filter use this
 const isLowStock = (r) => r.stock != null && r.stock <= LOW_STOCK;
 const stockCell = (r) => {
@@ -84,7 +86,7 @@ const RES = {
     ],
     fields: [
       { key: 'name', label: 'Name', type: 'text', required: true, max: 120 },
-      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]) },
+      { key: 'category_id', label: 'Section', type: 'select', required: true, groups: () => sectionGroups() },
       { key: 'price', label: 'Price (PHP, optional)', type: 'priceopt', hint: 'Leave empty to show "Ask for today\'s price". An item needs a price before it can be ordered online.' },
       { key: 'stock', label: 'Stock (portions)', type: 'stockopt', hint: 'Leave empty if you do not track stock. Each order subtracts from it; at 0 the item shows as sold out.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0 },
@@ -124,7 +126,7 @@ const RES = {
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
-      { key: 'category_id', label: 'Section', type: 'select', required: true, options: () => S.categories.map((c) => [c.id, `${VENUE_LABEL[c.venue] || ''} · ${c.name}`]), hint: 'This extra is offered for every dish in this section.' },
+      { key: 'category_id', label: 'Section', type: 'select', required: true, groups: () => sectionGroups(), hint: 'This extra is offered for every dish in this section.' },
       { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
       { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
