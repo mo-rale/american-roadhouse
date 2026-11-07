@@ -178,7 +178,7 @@ const RES = {
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
       { key: 'show_on_home', label: 'Also show in the Gallery preview on the home page (the first 8 are shown)', type: 'checkbox', def: false },
     ],
-    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    validate: (p) => (p.image_url || S.pendingImg.image_url ? {} : { image_url: 'Please choose a photo.' }),
     beforeSave: (payload, row, rows) => { if (!row && !payload.sort_order) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   highlights: {
@@ -214,7 +214,7 @@ const RES = {
       { key: 'caption', label: 'Description', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo, read aloud to blind visitors and used by Google.' },
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
     ],
-    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    validate: (p) => (p.image_url || S.pendingImg.image_url ? {} : { image_url: 'Please choose a photo.' }),
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   features: {
@@ -256,7 +256,7 @@ const RES = {
     ],
     validate: (p) => {
       const e = {};
-      if (!p.image_url) e.image_url = 'Please choose a photo.';
+      if (!p.image_url && !S.pendingImg.image_url) e.image_url = 'Please choose a photo.';
       if (p.map_url && !/^https:\/\//.test(p.map_url)) e.map_url = 'The link must start with https://';
       return e;
     },
