@@ -1,10 +1,11 @@
 // Photo hero slideshow (scroll-snap): swipe, arrows, dots, keyboard, and it advances by itself.
-// Slides can be rebuilt after load (restaurant-slides.js): call window.refreshHeroSlider(root) afterwards.
+// Slides can be rebuilt after load (page-slides.js): call window.refreshHeroSlider(root) afterwards.
 (() => {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   const AUTO_MS = 5000;
 
   function setup(root) {
+    if (root._hero) return;
     const track = root.querySelector('.hero-track');
     const prev = root.querySelector('.hero-prev');
     const next = root.querySelector('.hero-next');
@@ -59,6 +60,7 @@
     startTimer();
   }
 
+  window.setupHeroSlider = setup;
   window.refreshHeroSlider = (root) => { if (root && root._hero) root._hero.reset(); };
   document.querySelectorAll('.hero-slider').forEach(setup);
 })();

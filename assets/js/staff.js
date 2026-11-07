@@ -55,6 +55,7 @@ const isAdmin = () => S.profile?.role === 'admin';
 const onOff = (v, a = 'Yes', b = 'No') => `<span class="badge ${v ? '' : 'bad'}">${v ? a : b}</span>`;
 
 /* ---------- resource definitions (drive the generic CRUD tables) ---------- */
+const PAGE_LABEL = { rooms: 'Rooms', restaurant: 'Restaurant', services: 'Services', gallery: 'Gallery', contact: 'About & Contact', booking: 'Booking' };
 const VENUE_LABEL = { main: 'Main', roofdeck: 'Roof Deck' };
 // menu sections grouped by venue, so the picker is short headings with their sections under them
 const sectionGroups = () => Object.keys(VENUE_LABEL).map((v) => [VENUE_LABEL[v] + ' menu', S.categories.filter((c) => c.venue === v).map((c) => [c.id, c.name])]).filter(([, items]) => items.length);
@@ -189,15 +190,17 @@ const RES = {
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   slideshow: {
-    label: 'Slideshow', noun: 'photo', table: 'restaurant_slides', select: '*', admin: false, order: ['sort_order', 'created_at'],
-    note: 'The photos that slide across the top of the Restaurant page, in this order. Grab the ⠿ handle and drag a photo to change its place. With 2 or more photos it plays by itself.',
+    label: 'Slideshow', noun: 'photo', table: 'page_slides', select: '*', admin: false, order: ['page', 'sort_order', 'created_at'],
+    note: 'The photos that slide across the top of a page. Pick the page for each photo; a page with no photos keeps its normal header picture. Grab the ⠿ handle and drag a photo to change its place. With 2 or more photos it plays by itself.',
     columns: [
       ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Page', (r) => esc(PAGE_LABEL[r.page] || r.page)],
       ['Description', (r) => esc(r.caption || '—')],
     ],
     toggles: [{ key: 'is_visible', label: 'Shown' }],
     sortable: true,
     fields: [
+      { key: 'page', label: 'Page', type: 'select', required: true, options: () => Object.entries(PAGE_LABEL), get def() { return S.rpage || ''; }, hint: 'Which page this photo slides on.' },
       { key: 'image_url', label: 'Photo', type: 'image', span2: true, hint: 'A wide, landscape photo works best.' },
       { key: 'caption', label: 'Description', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo, read aloud to blind visitors and used by Google.' },
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
@@ -424,7 +427,7 @@ function startApp() {
 
 // screens that live under a top tab, shown as a row of sub-tabs
 const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
-const WEB_SUB = [['highlights', 'Home highlights'], ['slideshow', 'Restaurant slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
+const WEB_SUB = [['highlights', 'Home highlights'], ['slideshow', 'Slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
 const TAB_GROUP = {};
 MENU_SUB.forEach(([k]) => { TAB_GROUP[k] = 'menu'; });
 WEB_SUB.forEach(([k]) => { TAB_GROUP[k] = 'website'; });
@@ -433,7 +436,7 @@ function showTab(tab) {
   S.tab = tab;
   S.rng = { orders: {}, inquiries: {}, history: {} };
   S.isub = S.isub || 'booking';
-  S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.ractive = ''; S.rxprice = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
+  S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.ractive = ''; S.rxprice = ''; S.rpage = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
   if (tab === 'website') { showTab('highlights'); return; }
   document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (TAB_GROUP[tab] || tab))));
   const p = $('st-panel');
@@ -614,7 +617,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', restaurant_slides: 'slideshow', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', page_slides: 'slideshow', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -976,6 +979,7 @@ function renderResource(key) {
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
         ${key === 'options' ? `<select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
+        ${key === 'slideshow' ? `<select id="r-page" class="st-select" aria-label="Filter by page"><option value="">All pages</option>${Object.entries(PAGE_LABEL).map(([v, l]) => `<option value="${v}" ${S.rpage === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
           <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
@@ -991,6 +995,7 @@ function renderResource(key) {
     && (!S.rvenue || (r.categories?.venue || r.menu_items?.categories?.venue) === S.rvenue)
     && (S.rstock !== 'low' || isLowStock(r)) && (S.rstock !== 'untracked' || r.stock == null)
     && (S.ractive !== 'on' || r.is_active) && (S.ractive !== 'off' || r.is_active === false)
+    && (!S.rpage || r.page === S.rpage)
     && (S.rxprice !== 'free' || Number(r.price) === 0) && (S.rxprice !== 'paid' || Number(r.price) > 0));
   const body = $('r-body');
   if (!currentRows.length) {
@@ -1817,6 +1822,7 @@ function init() {
     }
     if (e.target.dataset.toggle) toggleField(S.tab, e.target.dataset.id, e.target.dataset.toggle);
     if (e.target.id === 'r-cat') { S.rcat = e.target.value; renderResource(S.tab); }
+    if (e.target.id === 'r-page') { S.rpage = e.target.value; renderResource(S.tab); }
     if (e.target.id === 'r-venue') { S.rvenue = e.target.value; renderResource(S.tab); }
     if (e.target.id === 'r-stock') { S.rstock = e.target.value; renderResource(S.tab); }
     if (e.target.id === 'r-active') { S.ractive = e.target.value; renderResource(S.tab); }
