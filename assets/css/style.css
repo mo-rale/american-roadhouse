@@ -356,11 +356,11 @@ body{ padding-bottom: 62px; }
 .hero-content{ position:relative; z-index:2; padding-bottom: 88px; }
 .hero-eyebrow{
   font-size:13px; font-weight:600; letter-spacing:.14em;
-  color: var(--brass);
+  color: #fff;
   display:flex; align-items:center; gap:12px;
   margin-bottom:22px;
 }
-.hero-eyebrow::before{ content:""; width:34px; height:1px; background: var(--brass); }
+.hero-eyebrow::before{ content:""; width:34px; height:1px; background: #fff; }
 .hero h1{
   color: var(--white);
   font-size: 42px;
