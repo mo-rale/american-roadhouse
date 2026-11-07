@@ -515,6 +515,7 @@ function orderCard(o) {
     <div class="o-items">${o.order_items.map((i) => { const img = i.menu_items?.image_url; return `<div><span class="o-it">${img ? `<button type="button" class="o-thumbbtn" data-photo="${esc(safeImg(img))}" data-name="${esc(i.item_name)}" aria-label="View photo of ${esc(i.item_name)}"><img class="o-thumb" src="${esc(safeImg(img))}" alt="" loading="lazy"></button>` : '<span class="o-thumb o-none" aria-hidden="true"></span>'}<span>${i.quantity} × ${esc(i.item_name)}${(i.extras || []).length ? `<small class="o-extra">${i.extras.map((x) => `+ ${esc(x.name)}`).join('<br>')}</small>` : ''}</span></span><span class="price">${peso(i.line_total)}</span></div>`; }).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
+      ${Number(o.box_fee) > 0 ? `<div><span>Box fee</span><span class="price">${peso(o.box_fee)}</span></div>` : ''}
       <div class="o-total"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div></div>
     ${o.notes ? `<div class="o-note"><strong>Customer note:</strong> ${esc(o.notes)}</div>` : ''}
     <div class="o-actions">${actions}${isAdmin() ? ` <button type="button" class="btn-xs danger" data-del-order="${esc(o.id)}">Delete</button>` : ''}</div></article>`;
@@ -1530,6 +1531,7 @@ const DEL_FIELDS = [
   ['base_km', 'Distance covered by the base fee (km)', 'Within this distance the customer pays only the base fee.'],
   ['per_km_fee', 'Fee for each extra km (PHP)', 'Added for every kilometre beyond the base distance.'],
   ['max_km', 'Farthest delivery distance (km)', 'Orders pinned farther than this are refused.'],
+  ['box_fee', 'Box fee (PHP)', 'A packaging fee added to every delivery and pickup order. Dine-in and room orders do not pay it. Use 0 for no box fee.'],
   ['road_factor', 'Road factor', 'Roads are longer than a straight line. 1.3 means we count 30% extra. Use 1 for a straight line.'],
 ];
 const delFee = (c, km) => Math.ceil(Number(c.base_fee) + Math.max(0, km - Number(c.base_km)) * Number(c.per_km_fee));
@@ -1593,7 +1595,7 @@ async function onSaveDelivery() {
     if (!latRaw || !Number.isFinite(lat) || lat < -90 || lat > 90) return bad('d-lat', 'Enter a latitude, for example 9.8123.');
     if (!lngRaw || !Number.isFinite(lng) || lng < -180 || lng > 180) return bad('d-lng', 'Enter a longitude, for example 124.5456.');
   }
-  const limits = { base_fee: [0, 100000], base_km: [0, 100], per_km_fee: [0, 100000], max_km: [0.5, 500], road_factor: [1, 3] };
+  const limits = { base_fee: [0, 100000], base_km: [0, 100], per_km_fee: [0, 100000], max_km: [0.5, 500], road_factor: [1, 3], box_fee: [0, 100000] };
   const payload = { is_active: $('d-active').checked, store_lat: lat, store_lng: lng, updated_at: new Date().toISOString() };
   for (const [k, [lo, hi]] of Object.entries(limits)) {
     const v = num(`d-${k}`);

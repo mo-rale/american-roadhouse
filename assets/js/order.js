@@ -237,6 +237,9 @@ function renderMenu() {
 /* ---------- delivery fee ---------- */
 // Same maths as place_order in the database (which is the one that counts): base fee for the first km, then per km, rounded up.
 const isDelivery = () => document.querySelector('input[name="order_type"]:checked')?.value === 'delivery';
+const isPickup = () => document.querySelector('input[name="order_type"]:checked')?.value === 'pickup';
+// packaging fee: delivery and pickup orders only (an order being edited keeps the fee it was placed with)
+const boxFee = () => (state.edit ? state.edit.box : (isDelivery() || isPickup()) ? Number(state.cfg?.box_fee) || 0 : 0);
 const cfgReady = () => Boolean(state.cfg && state.cfg.store_lat != null && state.cfg.store_lng != null);
 function distanceKm(lat, lng) {
   const c = state.cfg, R = 6371, rad = (d) => (d * Math.PI) / 180;
@@ -447,8 +450,11 @@ function renderCart() {
 
   const sub = localSubtotal();
   const fee = state.edit ? state.edit.fee : deliveryFee();
-  const q = { subtotal: sub, total: sub + (fee || 0) };
+  const box = boxFee();
+  const q = { subtotal: sub, total: sub + (fee || 0) + box };
   $('t-subtotal').textContent = peso(q.subtotal);
+  $('t-box-row').hidden = !(box > 0);
+  $('t-box').textContent = peso(box);
   if (lines.length && !$('checkout').hidden) autoLocate();
   $('t-fee-row').hidden = state.edit ? !(state.edit.fee > 0) : (!isDelivery() || !cfgReady());
   if (state.edit) { $('t-fee').textContent = peso(state.edit.fee); $('t-km').textContent = ''; }
@@ -611,12 +617,13 @@ function askConfirm(form) {
   const editing = Boolean(state.edit);
   const lines = cartLines();
   const fee = editing ? state.edit.fee : deliveryFee();
-  const total = localSubtotal() + (fee || 0);
+  const total = localSubtotal() + (fee || 0) + boxFee();
   const type = form.order_type.value;
   $('cf-title').textContent = editing ? `Save changes to order #${state.edit.number}?` : 'Place your order?';
   $('cf-sub').textContent = editing ? 'Your order will be updated for the kitchen.' : 'Please check your order before we send it to the kitchen.';
   $('cf-lines').innerHTML = lines.map(({ it, qty, extras, unit }) => `<div><span>${qty} &times; ${esc(it.name)}${extras.map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(unit * qty)}</span></div>`).join('')
-    + (fee ? `<div><span>Delivery fee</span><span class="price">${peso(fee)}</span></div>` : '');
+    + (fee ? `<div><span>Delivery fee</span><span class="price">${peso(fee)}</span></div>` : '')
+    + (boxFee() > 0 ? `<div><span>Box fee</span><span class="price">${peso(boxFee())}</span></div>` : '');
   $('cf-total').textContent = peso(total);
   let where = '';
   if (!editing) {
@@ -721,6 +728,7 @@ function confirmHtml(o) {
         ${o.order_items.map((i) => `<div><span>${i.quantity} &times; ${esc(i.item_name)}${(i.extras || []).map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
         ${Number(o.discount_total) > 0 ? `<div><span>Discount (${esc(o.discount_code)})</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
         ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee${o.delivery_km != null ? ` (${Number(o.delivery_km).toFixed(1)} km)` : ''}</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
+        ${Number(o.box_fee) > 0 ? `<div><span>Box fee</span><span class="price">${peso(o.box_fee)}</span></div>` : ''}
         <div><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
       </div>
       <p style="font-size:13px;color:#6b6357;margin-bottom:18px;">This page updates automatically as the kitchen works on your order. You can change it until it is ready. Payment is collected when you receive it.</p>
@@ -785,7 +793,7 @@ async function startEdit(orderId) {
     if (!canEdit(o)) { toast(`Order #${o.order_number} is already ${STATUS_LABEL[o.status]}, so it can no longer be changed.`, 'error'); if (state.confirmId) showConfirmation(orderId); return; }
     const form = $('checkout');
     state.edit = {
-      id: o.id, number: o.order_number, fee: Number(o.delivery_fee) || 0,
+      id: o.id, number: o.order_number, fee: Number(o.delivery_fee) || 0, box: Number(o.box_fee) || 0,
       orig: new Map(),
       stash: new Map(state.cart), notes: form.notes.value,
     };
@@ -878,6 +886,7 @@ function myOrderHtml(o) {
       ${items.map((i) => `<div><span>${i.qty} &times; ${esc(i.name)}${(i.extras || []).map((x) => `<small class="o-extra">+ ${esc(x.name)}</small>`).join('')}</span><span class="price">${peso(i.line_total)}</span></div>`).join('')}
       ${Number(o.discount_total) > 0 ? `<div><span>Discount</span><span class="price">−${peso(o.discount_total)}</span></div>` : ''}
       ${Number(o.delivery_fee) > 0 ? `<div><span>Delivery fee</span><span class="price">${peso(o.delivery_fee)}</span></div>` : ''}
+      ${Number(o.box_fee) > 0 ? `<div><span>Box fee</span><span class="price">${peso(o.box_fee)}</span></div>` : ''}
       <div class="tot"><strong>Total</strong><strong class="price">${peso(o.total)}</strong></div>
     </div>
     ${o.mine && canEdit(o) ? `<button type="button" class="btn btn-outline btn-sm mo-edit" data-edit-order="${esc(o.id)}">Edit order</button>` : ''}
