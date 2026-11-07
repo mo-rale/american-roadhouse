@@ -88,6 +88,14 @@
         <p style="color:#6b6357;font-size:14px;margin-bottom:14px;">Relax and unwind with a massage during your stay. See the types and prices.</p>
         <a href="#massage" data-open-massage="1" style="color:var(--wood);font-weight:600;font-size:14px;">View Types &amp; Prices &rarr;</a>
       </div>
+      <div class="feature-card" data-open-transport="1" style="cursor:pointer;">
+        <div style="width:100%;height:150px;border-radius:8px;margin-bottom:16px;background:var(--linen-deep);display:flex;align-items:center;justify-content:center;color:var(--wood);" aria-hidden="true">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z"/><path d="M5 12h14"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/></svg>
+        </div>
+        <h3 style="font-size:18px;margin-bottom:8px;">Transportation</h3>
+        <p style="color:#6b6357;font-size:14px;margin-bottom:14px;">Rent a motorcycle to explore Candijay, or ask for an airport pick-up in our car.</p>
+        <a href="#transport" data-open-transport="1" style="color:var(--wood);font-weight:600;font-size:14px;">See Options &amp; Rates &rarr;</a>
+      </div>
       <div class="feature-card" data-open-event="1" style="cursor:pointer;">
         <img src="assets/venue/roofdeck-bar-2.jpg" alt="Roof deck set up for an event" loading="lazy" style="width:100%;height:150px;object-fit:cover;object-position:center 55%;border-radius:8px;margin-bottom:16px;">
         <h3 style="font-size:18px;margin-bottom:8px;">Events &amp; Gatherings</h3>
@@ -163,6 +171,52 @@
   </div>
 </dialog>
 
+<dialog id="transport-dlg" class="massage-dlg" aria-labelledby="transport-title">
+  <div class="massage-head">
+    <img src="assets/venue/roofdeck-wide-1.jpg" alt="">
+    <button type="button" class="massage-x" data-close="1" aria-label="Close">&times;</button>
+  </div>
+  <h3 id="transport-title">Transportation</h3>
+
+  <div id="transport-menu">
+    <p class="massage-sub">Options and rates</p>
+    <ul class="massage-list" id="transport-list"></ul>
+    <div class="massage-foot">
+      <button type="button" class="btn btn-brass btn-sm" data-show="form">Send a Request</button>
+      <button type="button" class="btn btn-outline btn-sm" data-close="1">Close</button>
+    </div>
+  </div>
+
+  <div id="transport-formview" class="massage-scroll" hidden>
+    <p class="massage-sub">Tell us what you need and we will confirm by phone.</p>
+    <form id="transport-form" class="massage-form" novalidate>
+      <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;">
+      <label>Your name<input type="text" name="full_name" maxlength="80" autocomplete="name" required></label>
+      <label>Phone number<input type="tel" name="phone" maxlength="24" autocomplete="tel" placeholder="09XX XXX XXXX" required></label>
+      <label>Email <em>(optional)</em><input type="email" name="email" maxlength="120" autocomplete="email"></label>
+      <label>What do you need<select name="transport_type" id="tf-type" required><option value="">Choose one</option></select></label>
+      <div class="massage-form-row">
+        <label>Date<input type="date" name="date" required></label>
+        <label>Time <em>(optional)</em><input type="time" name="time"></label>
+      </div>
+      <label>Number of days <em>(for a rental)</em><input type="text" name="days" maxlength="20" inputmode="numeric" placeholder="For example: 2"></label>
+      <label>Flight and arrival time <em>(for an airport pick-up)</em><input type="text" name="flight" maxlength="80" placeholder="For example: 5J 123, arriving 2:30 PM"></label>
+      <label>Number of people <em>(optional)</em><input type="text" name="guests" maxlength="10" inputmode="numeric"></label>
+      <label>Notes <em>(optional)</em><textarea name="notes" rows="3" maxlength="500" placeholder="Anything we should know."></textarea></label>
+      <div class="form-error massage-err" id="tf-error" role="alert"></div>
+      <div class="massage-foot" style="padding:6px 0 0;">
+        <button type="submit" class="btn btn-brass btn-sm">Send Request</button>
+        <button type="button" class="btn btn-outline btn-sm" data-show="menu">Back to options</button>
+      </div>
+    </form>
+    <div id="tf-ok" class="massage-ok" hidden>
+      <strong>Thank you, your request was sent.</strong>
+      <p>We will contact you to confirm.</p>
+      <div class="massage-foot" style="padding:6px 0 0;"><button type="button" class="btn btn-outline btn-sm" data-close="1">Close</button></div>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="event-dlg" class="massage-dlg" aria-labelledby="event-title">
   <div class="massage-head">
     <img src="assets/venue/roofdeck-bar-2.jpg" alt="" style="object-position:center 55%;">
@@ -224,5 +278,6 @@
 <script type="module" src="assets/js/page-slides.js"></script>
 <script type="module" src="assets/js/massage.js"></script>
 <script type="module" src="assets/js/events.js"></script>
+<script type="module" src="assets/js/transport.js"></script>
 </body>
 </html>

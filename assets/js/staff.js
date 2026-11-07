@@ -278,6 +278,24 @@ const RES = {
     ],
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
+  transport: {
+    label: 'Transportation', noun: 'service', table: 'transport_services', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The options shown under Transportation on the Services page, such as motorcycle rental and airport pick-up. Grab the ⠿ handle and drag one to change its place. Customers send requests from that page; they arrive under Inquiries > Transport.',
+    columns: [
+      ['Service', (r) => esc(r.name || '—')],
+      ['Details', (r) => esc((r.description || '').length > 70 ? `${r.description.slice(0, 70)}…` : r.description || '—')],
+      ['Price shown', (r) => esc(r.price_label || '—')],
+    ],
+    toggles: [{ key: 'is_active', label: 'Shown' }],
+    sortable: true,
+    fields: [
+      { key: 'name', label: 'Service', type: 'text', required: true, max: 80, span2: true, hint: 'For example: Motorcycle rental.' },
+      { key: 'description', label: 'Details', type: 'textarea', max: 300, span2: true },
+      { key: 'price_label', label: 'Price shown', type: 'text', max: 60, hint: 'For example: ₱500 per day, or Ask for rates.' },
+      { key: 'is_active', label: 'Show on the Services page', type: 'checkbox', def: true },
+    ],
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
   massage: {
     label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
     note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
@@ -497,7 +515,7 @@ function startApp() {
 
 // screens that live under a top tab, shown as a row of sub-tabs
 const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
-const WEB_SUB = [['hometext', 'Home text'], ['highlights', 'Menu highlights'], ['features', 'Why choose us'], ['places', 'Places near me'], ['faqs', 'FAQ'], ['slideshow', 'Slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
+const WEB_SUB = [['hometext', 'Home text'], ['highlights', 'Menu highlights'], ['features', 'Why choose us'], ['places', 'Places near me'], ['faqs', 'FAQ'], ['slideshow', 'Slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests'], ['transport', 'Transportation']];
 const TAB_GROUP = {};
 MENU_SUB.forEach(([k]) => { TAB_GROUP[k] = 'menu'; });
 WEB_SUB.forEach(([k]) => { TAB_GROUP[k] = 'website'; });
@@ -689,7 +707,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', home_features: 'features', home_places: 'places', home_faqs: 'faqs', page_slides: 'slideshow', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', home_features: 'features', home_places: 'places', home_faqs: 'faqs', page_slides: 'slideshow', transport_services: 'transport', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -776,15 +794,15 @@ function confirmDialog(title, message, label = 'Confirm', danger = true) {
 }
 
 /* ---------- inquiries (room bookings, table reservations, messages) ---------- */
-const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message', massage: 'Massage', event: 'Event' };
+const KIND_LABEL = { booking: 'Room booking', table: 'Table reservation', message: 'Message', massage: 'Massage', event: 'Event', transport: 'Transport' };
 const isInqTab = (t = S.tab) => t === 'inquiries';
 // inside Inquiries: Massage and Events have their own sub-tabs, Booking shows everything else
-const inqSub = (i) => (i.kind === 'massage' ? 'massage' : i.kind === 'event' ? 'event' : 'booking');
+const inqSub = (i) => (i.kind === 'massage' ? 'massage' : i.kind === 'event' ? 'event' : i.kind === 'transport' ? 'transport' : 'booking');
 const inqScope = () => inquiries.filter((i) => inqSub(i) === S.isub);
 const INQ_STATUS = { new: 'New', contacted: 'Contacted', closed: 'Closed' };
 const DETAIL_LABEL = {
   check_in: 'Check-in', check_out: 'Check-out', guests: 'Guests', room_preference: 'Room',
-  event_type: 'Event', venue: 'Venue', massage_type: 'Massage', service_type: 'Where', address: 'Home address', date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
+  event_type: 'Event', venue: 'Venue', transport_type: 'Needs', days: 'Days', flight: 'Flight and arrival', massage_type: 'Massage', service_type: 'Where', address: 'Home address', date: 'Date', time: 'Time', party_size: 'Party size', special_request: 'Special request', notes: 'Message', message: 'Message',
 };
 let inquiries = [];
 S.ifilter = 'new';
@@ -801,16 +819,16 @@ async function loadInquiries() {
 
 async function updateInquiryBadge() {
   const base = () => supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new');
-  const [other, massage, event] = await Promise.all([base().not('kind', 'in', '(massage,event)'), base().eq('kind', 'massage'), base().eq('kind', 'event')]);
-  S.newInq = { booking: other.count || 0, massage: massage.count || 0, event: event.count || 0 };
-  const n = S.newInq.booking + S.newInq.massage + S.newInq.event;
+  const [other, massage, event, transport] = await Promise.all([base().not('kind', 'in', '(massage,event,transport)'), base().eq('kind', 'massage'), base().eq('kind', 'event'), base().eq('kind', 'transport')]);
+  S.newInq = { booking: other.count || 0, massage: massage.count || 0, event: event.count || 0, transport: transport.count || 0 };
+  const n = S.newInq.booking + S.newInq.massage + S.newInq.event + S.newInq.transport;
   syncAppBadge();
   const tab = document.querySelector('#st-tabs [data-tab="inquiries"]');
   if (tab) tab.innerHTML = `Inquiries${n ? ` <span class="tab-badge" aria-label="${n} new">${n}</span>` : ''}`;
   renderInqSubtabs();
 }
 
-const INQ_SUB = [['booking', 'Booking'], ['massage', 'Massage'], ['event', 'Events']];
+const INQ_SUB = [['booking', 'Booking'], ['massage', 'Massage'], ['event', 'Events'], ['transport', 'Transport']];
 function renderInqSubtabs() {
   const el = $('i-sub');
   if (!el) return;
@@ -859,7 +877,7 @@ function renderInquiries() {
   'inquiries', 'created_at', 'desc');
   $('i-body').innerHTML = list.length
     ? `<div class="order-grid">${list.map(inquiryCard).join('')}</div>`
-    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : S.isub === 'massage' ? 'Massage requests from the Services page will appear here automatically.' : S.isub === 'event' ? 'Event and gathering requests from the Services page will appear here automatically.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
+    : `<div class="empty"><strong>${q ? 'No inquiries match your search' : 'No inquiries here'}</strong>${q ? 'Try a different name or phone number.' : hasRange('inquiries') ? 'No inquiries were received in this date range.' : S.isub === 'massage' ? 'Massage requests from the Services page will appear here automatically.' : S.isub === 'event' ? 'Event and gathering requests from the Services page will appear here automatically.' : S.isub === 'transport' ? 'Motorcycle rental and airport pick-up requests from the Services page will appear here automatically.' : 'Room bookings, table reservations and messages from the website will appear here automatically.'}</div>`;
   S.fresh.clear();
 }
 
