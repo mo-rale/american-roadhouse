@@ -172,22 +172,20 @@ const RES = {
     beforeSave: (payload, row, rows) => { if (!row && !payload.sort_order) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   highlights: {
-    label: 'Highlights', noun: 'highlight', table: 'home_highlights', select: '*', admin: false, order: ['sort_order', 'created_at'],
-    note: 'The “Menu Highlights” cards on the home page (up to 4), in this order. Grab the ⠿ handle and drag a card up or down to change its place. New cards go to the end.',
+    label: 'Highlights', noun: 'highlight', table: 'home_highlights', select: '*, menu_items(name, price, image_url)', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The “Menu Highlights” cards on the home page (up to 4), in this order. Each card is a dish from the menu: its name, photo and price are taken from the menu. Grab the ⠿ handle and drag a card to change its place.',
     columns: [
-      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
-      ['Title', (r) => esc(r.title || '—')],
-      ['Line under it', (r) => esc(r.subtitle || '—')],
+      ['', (r) => `<img src="${esc(safeImg(r.menu_items?.image_url || r.image_url))}" alt="">`],
+      ['Dish', (r) => esc(r.menu_items?.name || r.title || '—')],
+      ['Shows', (r) => (r.menu_items ? `<span class="price">${peso(r.menu_items.price)}</span>` : esc(r.subtitle || '—'))],
     ],
     toggles: [{ key: 'is_visible', label: 'Shown' }],
     sortable: true, max: 4,
     fields: [
-      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
-      { key: 'title', label: 'Title', type: 'text', required: true, max: 80, span2: true, hint: 'For example: Garlic-Herb Grilled Fish.' },
-      { key: 'subtitle', label: 'Line under the title', type: 'text', max: 80, span2: true, hint: 'For example: ₱280 or Ask for today’s price. Leave empty to show nothing.' },
+      { key: 'menu_item_id', label: 'Dish from the menu', type: 'select', groups: () => dishGroups(), span2: true, hint: 'The card shows this dish’s name, photo and price from the menu. Change them in Menu and the home page follows.' },
       { key: 'is_visible', label: 'Show on the home page', type: 'checkbox', def: true },
     ],
-    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    validate: (p) => (!p.menu_item_id && !(editing.row && !editing.row.menu_item_id) ? { menu_item_id: 'Choose a dish from the menu.' } : {}),
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   massage: {
@@ -882,7 +880,7 @@ let currentRows = [];
 async function loadResource(key) {
   const cfg = RES[key];
   try {
-    if (key === 'menu' || key === 'extras' || key === 'options') await ensureCategories();
+    if (key === 'menu' || key === 'extras' || key === 'options' || key === 'highlights') await ensureCategories();
     let q = supabase.from(cfg.table).select(cfg.select);
     cfg.order.forEach((c) => (q = q.order(c)));
     const { data, error } = await q;
