@@ -145,7 +145,7 @@ const RES = {
       { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This size or flavor is offered only for the selected dish.' },
       { key: 'option_type', label: 'Type', type: 'select', required: true, options: () => [['size', 'Size'], ['flavor', 'Flavor']] },
       { key: 'name', label: 'Name customers see', type: 'text', required: true, max: 80 },
-      { key: 'price', label: 'Price (PHP)', type: 'money0', hint: 'For Size, this replaces the dish base price. For Flavor, this is added to the selected size price.' },
+      { key: 'price', label: 'Price (PHP)', type: 'money0', hint: 'For a Size or a Flavor, this price replaces the dish base price. For a Flavor, use 0 to keep the dish price.' },
       { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first within the type.' },
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
     ],
@@ -245,6 +245,8 @@ async function signOut() {
   if (S.poll) { clearInterval(S.poll); S.poll = null; }
   await supabase.auth.signOut();
   S.profile = null;
+  document.querySelector('link[rel="manifest"]')?.remove();
+  updateInstallBtn();
   route();
 }
 
@@ -273,6 +275,80 @@ function tabsForRole() {
   return t;
 }
 
+/* ---------- phone alerts (push notifications) and the number on the app icon ---------- */
+const VAPID_PUBLIC_KEY = 'BJhzKXURTWmyaujowe850bvS6E8oWRDBg48cgALtXcNar1MR_YKd4hEzKceO8GEFMpuhs1H0ilgSl_90GA-AD5o';
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const PUSH_LABEL = { on: 'Alerts: on', off: 'Alerts: off', denied: 'Alerts: blocked', unsupported: 'Alerts: n/a', ios: 'Alerts: n/a' };
+function pushLabel() { return PUSH_LABEL[S.push] || 'Alerts: off'; }
+const b64ToBytes = (b64) => { const p = '='.repeat((4 - (b64.length % 4)) % 4); const raw = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
+
+async function pushStatus() {
+  if (!pushSupported()) return isIOS() && !isStandalone() ? 'ios' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    const sub = await reg?.pushManager.getSubscription();
+    return sub && Notification.permission === 'granted' ? 'on' : 'off';
+  } catch { return 'off'; }
+}
+async function refreshPushUi() {
+  S.push = await pushStatus();
+  document.querySelectorAll('[data-push]').forEach((b) => { b.textContent = pushLabel(); b.setAttribute('aria-pressed', String(S.push === 'on')); });
+}
+async function togglePush() {
+  const st = await pushStatus();
+  if (st === 'ios') { toast('On an iPhone: tap Share, then "Add to Home Screen", then open the Staff icon and turn Alerts on there.'); return; }
+  if (st === 'unsupported') { toast('This browser cannot show phone alerts. Use Chrome on Android, or add this page to the Home Screen on an iPhone.', 'error'); return; }
+  if (st === 'denied') { toast('Alerts are blocked for this site. Allow notifications in the browser or phone settings, then try again.', 'error'); return; }
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    if (st === 'on') {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) { await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+      toast('Alerts are off on this phone.');
+    } else {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { toast('Alerts were not allowed, so nothing was turned on.', 'error'); await refreshPushUi(); return; }
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
+      const j = sub.toJSON();
+      const { error } = await supabase.from('push_subscriptions').upsert({ user_id: S.profile.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: 'endpoint' });
+      if (error) throw error;
+      toast('Alerts are on. This phone will be notified of new orders and inquiries.');
+    }
+  } catch (err) { toast(friendlyError(err), 'error'); }
+  await refreshPushUi();
+}
+// the red number on the app icon (Android and iPhone, once installed from the Home Screen)
+function syncAppBadge() {
+  const n = (S.pendingOrders || 0) + (S.newInq ? S.newInq.booking + S.newInq.massage + S.newInq.event : 0);
+  try { if ('setAppBadge' in navigator) { if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch { /* not supported */ }
+}
+
+/* ---------- install the Staff app (only offered after signing in) ---------- */
+let installEvent = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; updateInstallBtn(); });
+window.addEventListener('appinstalled', () => { installEvent = null; updateInstallBtn(); toast('Staff app installed. Open it from your home screen.'); });
+function updateInstallBtn() {
+  const b = $('install-btn');
+  if (!b) return;
+  // shown only to signed-in staff, never inside the installed app, and only where the phone can do it
+  b.hidden = !S.profile || isStandalone() || !(installEvent || isIOS());
+}
+async function installApp() {
+  if (installEvent) { installEvent.prompt(); await installEvent.userChoice.catch(() => {}); installEvent = null; updateInstallBtn(); return; }
+  if (isIOS()) toast('On an iPhone: tap the Share button in Safari, then "Add to Home Screen", then Add.');
+}
+// the Staff app's manifest is only added once someone has signed in, so the install option never appears on the sign-in screen
+function addStaffManifest() {
+  if (document.querySelector('link[rel="manifest"]')) return;
+  const l = document.createElement('link');
+  l.rel = 'manifest'; l.href = '/qsnqpbzovgcamaqq.webmanifest';
+  document.head.appendChild(l);
+}
+
 function startApp() {
   $('st-loading').hidden = true;
   $('st-app').hidden = false;
@@ -282,6 +358,10 @@ function startApp() {
     .map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === S.tab}">${l}</button>`).join('');
   document.querySelector('.shop-band')?.classList.add('compact');
   subscribeOrders();
+  addStaffManifest();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  updateInstallBtn();
+  refreshPushUi();
   showTab(S.tab);
   if (S.tab !== 'orders') loadOrders();
   if (!isInqTab()) loadInquiries();
@@ -349,6 +429,7 @@ async function updateBadges() {
   // Counted separately so the badge ignores whatever date range is being viewed.
   const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pending');
   const n = count || 0;
+  S.pendingOrders = n; syncAppBadge();
   const tab = document.querySelector('#st-tabs [data-tab="orders"]');
   if (tab) tab.innerHTML = `Orders${n ? ` <span class="tab-badge" aria-label="${n} pending">${n}</span>` : ''}`;
   document.title = `${n ? `(${n}) ` : ''}Staff Dashboard | American Roadhouse`;
@@ -382,6 +463,7 @@ function renderOrders() {
         <div class="tool-right">
           <input type="search" id="o-search" class="st-search" placeholder="Search # or name" aria-label="Search orders" value="${esc(S.orderSearch || '')}">
           <button type="button" class="btn-xs" id="sound-btn" data-sound="1"></button>
+          <button type="button" class="btn-xs" data-push="1">${esc(pushLabel())}</button>
           <span class="live-dot" id="live"></span></div></div>
       <div id="rng-orders">${rangeBar('orders')}</div>${purgeBar('orders')}
       <div id="o-body"></div>`;
@@ -584,6 +666,7 @@ async function updateInquiryBadge() {
   const [other, massage, event] = await Promise.all([base().not('kind', 'in', '(massage,event)'), base().eq('kind', 'massage'), base().eq('kind', 'event')]);
   S.newInq = { booking: other.count || 0, massage: massage.count || 0, event: event.count || 0 };
   const n = S.newInq.booking + S.newInq.massage + S.newInq.event;
+  syncAppBadge();
   const tab = document.querySelector('#st-tabs [data-tab="inquiries"]');
   if (tab) tab.innerHTML = `Inquiries${n ? ` <span class="tab-badge" aria-label="${n} new">${n}</span>` : ''}`;
   renderInqSubtabs();
@@ -618,7 +701,8 @@ function renderInquiries() {
     $('st-panel').innerHTML = `<div class="subtabs" id="i-sub" role="tablist" aria-label="Inquiry type"></div>
       <div class="st-toolbar"><div class="chips" id="i-chips" role="group" aria-label="Filter inquiries"></div>
       <div class="tool-right"><input type="search" id="i-search" class="st-search" placeholder="Search name or phone" aria-label="Search inquiries" value="${esc(S.iq || '')}">
-        <button type="button" class="btn-xs" id="isound-btn" data-sound="1"></button></div></div>
+        <button type="button" class="btn-xs" id="isound-btn" data-sound="1"></button>
+        <button type="button" class="btn-xs" data-push="1">${esc(pushLabel())}</button></div></div>
       <div id="rng-inquiries">${rangeBar('inquiries')}</div>${purgeBar('inquiries')}
       <div id="i-body"></div>`;
   }
@@ -1496,6 +1580,7 @@ function init() {
   }
   $('login-form').addEventListener('submit', onLogin);
   $('signout').addEventListener('click', signOut);
+  $('install-btn').addEventListener('click', installApp);
   $('dlg-form').addEventListener('submit', onSave);
   $('dlg-form').addEventListener('change', (e) => { if (e.target.type === 'file') onImagePick(e.target); });
   $('dlg-form').addEventListener('click', (e) => {
@@ -1537,6 +1622,7 @@ function init() {
     else if (t.dataset.status) setStatus(t.dataset.id, t.dataset.status);
     else if (t.dataset.cancelOrder) cancelOrder(t.dataset.cancelOrder);
     else if (t.dataset.delOrder) deleteOrder(t.dataset.delOrder);
+    else if (t.dataset.push) togglePush();
     else if (t.dataset.sound) {
       S.sound = !S.sound;
       try { localStorage.setItem('ar_sound', S.sound ? '1' : '0'); } catch { /* ignore */ }

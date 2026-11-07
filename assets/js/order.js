@@ -59,11 +59,16 @@ const itemOptions = (it) => [
   ...(state.optionsByItem.get(it.id) || []),
 ];
 const selectedOptions = (it, ids) => ids.map((id) => itemOptions(it).find((x) => x.id === id)).filter(Boolean);
+// A size or a flavor with a price replaces the dish price (a flavor at 0 keeps it); extras are added on top.
 const optionUnit = (it, options) => {
   const size = options.find((x) => x.option_type === 'size');
-  const additions = options.filter((x) => x.option_type !== 'size').reduce((s, x) => s + Number(x.price || 0), 0);
-  return (size ? Number(size.price) : Number(it.price)) + additions;
+  const flavor = options.find((x) => x.option_type === 'flavor');
+  const additions = options.filter((x) => x.option_type !== 'size' && x.option_type !== 'flavor').reduce((s, x) => s + Number(x.price || 0), 0);
+  const base = flavor && Number(flavor.price) > 0 ? Number(flavor.price) : size ? Number(size.price) : Number(it.price);
+  return base + additions;
 };
+// how an option's price reads: sizes and flavors show their own price, extras show "+price"; a free flavor shows nothing
+const optPriceText = (x) => (x.option_type === 'size' ? peso(x.price) : x.option_type === 'flavor' ? (Number(x.price) > 0 ? peso(x.price) : '') : `+${peso(x.price)}`);
 
 async function loadCatalog({ silent = false } = {}) {
   const root = $('menu-root');
@@ -429,7 +434,7 @@ function renderCart() {
   $('cart-lines').innerHTML = lines.map(({ key, it, qty, extras, unit }) => `
     <div class="cart-line">
       <div><div class="name">${esc(it.name)}</div>
-        ${extras.length ? `<div class="cart-extras">${extras.map((x) => `${x.option_type === 'size' ? '' : '+ '}${esc(x.name)} <span>(${x.option_type === 'size' ? peso(x.price) : `+${peso(x.price)}`})</span>`).join('<br>')}</div>` : ''}
+        ${extras.length ? `<div class="cart-extras">${extras.map((x) => `${x.option_type === 'size' || x.option_type === 'flavor' ? '' : '+ '}${esc(x.name)}${optPriceText(x) ? ` <span>(${optPriceText(x)})</span>` : ''}`).join('<br>')}</div>` : ''}
         <div class="unit">${peso(unit)} each</div></div>
       <div class="price">${peso(unit * qty)}</div>
       <div class="qty" role="group" aria-label="Quantity of ${esc(it.name)}">
@@ -540,7 +545,7 @@ function openExtras(itemId) {
   $('ex-list').innerHTML = groups.map(([type, label, control]) => {
     const opts = list.filter((x) => (x.option_type || 'extra') === type);
     if (!opts.length) return '';
-    return `<fieldset class="ex-group"><legend>${label}</legend>${opts.map((x) => `<label class="ex-opt"><input type="${control}" name="ex-${type}" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>${type === 'size' ? peso(x.price) : `+${peso(x.price)}`}</b></label>`).join('')}</fieldset>`;
+    return `<fieldset class="ex-group"><legend>${label}</legend>${opts.map((x) => `<label class="ex-opt"><input type="${control}" name="ex-${type}" value="${esc(x.id)}"><span>${esc(x.name)}</span><b>${optPriceText(x)}</b></label>`).join('')}</fieldset>`;
   }).join('');
   const chosen = () => [...$('ex-list').querySelectorAll('input:checked')].map((i) => i.value);
   const refresh = () => {
