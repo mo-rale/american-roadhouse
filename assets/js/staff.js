@@ -171,6 +171,25 @@ const RES = {
     validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
     beforeSave: (payload, row, rows) => { if (!row && !payload.sort_order) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
+  highlights: {
+    label: 'Highlights', noun: 'highlight', table: 'home_highlights', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The “Menu Highlights” cards on the home page (up to 4), in this order. Grab the ⠿ handle and drag a card up or down to change its place. New cards go to the end.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Title', (r) => esc(r.title || '—')],
+      ['Line under it', (r) => esc(r.subtitle || '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true, max: 4,
+    fields: [
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
+      { key: 'title', label: 'Title', type: 'text', required: true, max: 80, span2: true, hint: 'For example: Garlic-Herb Grilled Fish.' },
+      { key: 'subtitle', label: 'Line under the title', type: 'text', max: 80, span2: true, hint: 'For example: ₱280 or Ask for today’s price. Leave empty to show nothing.' },
+      { key: 'is_visible', label: 'Show on the home page', type: 'checkbox', def: true },
+    ],
+    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
   massage: {
     label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
     note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
@@ -291,7 +310,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['highlights', 'Highlights'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -572,7 +591,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -870,6 +889,7 @@ async function loadResource(key) {
     if (error) throw error;
     if (S.tab !== key) return;
     currentRows = data;
+    if (cfg.max) $('r-body')?.remove();          // rebuild the toolbar so the Add button follows the limit
     renderResource(key);
   } catch (err) { panelError(err, () => loadResource(key)); }
 }
@@ -939,7 +959,7 @@ function renderResource(key) {
         ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
         ${key === 'extras' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
           <select id="r-xprice" class="st-select" aria-label="Filter by price"><option value="">Any price</option><option value="paid">Paid</option><option value="free">Free</option></select>` : ''}
-        ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
+        ${canWrite && cfg.max && currentRows.length >= cfg.max ? `<span class="badge">Maximum of ${cfg.max} reached. Delete one to add another.</span>` : canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
       ${cfg.note ? `<p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">${esc(cfg.note)}</p>` : ''}
       <div id="r-body"></div>`;
