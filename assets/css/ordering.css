@@ -489,3 +489,15 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .menu-search button[hidden]{ display:none; }
 .search-note{ margin:0 0 14px; font-size:13.5px; color:#6b6357; }
 mark.hit{ background:#f3dfae; color:inherit; border-radius:3px; padding:0 1px; }
+
+/* four ways to get the order: two per row on narrow panels, all four in a row when there is room */
+.opt-row{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (min-width:430px){ .opt-row{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+@media (min-width:1000px) and (max-width:1250px){ .opt-row{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+.opt-row label{ flex:none; display:flex; align-items:center; justify-content:center; min-height:56px; }
+
+/* the order button is grey until everything needed is filled in, and says what is missing */
+#place-btn:disabled{ background:#bdb6a8; border-color:#bdb6a8; color:#fff; opacity:1; cursor:not-allowed; box-shadow:none; }
+.place-hint{ margin:10px 0 0; padding:9px 12px; border-radius:8px; background:#f6ecd7; color:#5c4420; font-size:13.5px; line-height:1.45; }
+.place-hint[hidden]{ display:none; }
+.place-hint strong{ font-weight:700; }

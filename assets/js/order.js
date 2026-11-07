@@ -412,14 +412,35 @@ function renderCart() {
   $('fab-total').textContent = peso(q.total);
 }
 
+// What the customer still has to fill in before the order can be sent (empty when ready).
+function missingFields() {
+  if (state.edit) return [];
+  const form = $('checkout'), type = form.order_type.value, out = [];
+  if (!rules.name(form.name.value)) out.push('your name');
+  if (!rules.phone(form.phone.value)) out.push('a valid phone number');
+  if (!rules.email(form.email.value)) out.push('a valid email (or leave it empty)');
+  if (type === 'delivery') {
+    if (form.delivery_address.value.trim().length < 6) out.push('your delivery address');
+    if (cfgReady() && !state.pin && state.far == null) out.push('your location on the map');
+  }
+  if (type === 'room_delivery' && !form.room_number.value.trim()) out.push('your room number');
+  return out;
+}
+
 // Ordering is blocked while the pin is outside the delivery limit.
 const outOfRange = () => !state.edit && isDelivery() && cfgReady() && state.far != null;
 function updatePlaceBtn() {
   const btn = $('place-btn'), msg = $('range-msg');
   if (!btn || state.placing) return;
   const blocked = outOfRange();
-  btn.disabled = blocked;
+  const missing = blocked ? [] : missingFields();
+  btn.disabled = blocked || missing.length > 0;
   btn.textContent = blocked ? 'Outside our delivery area' : state.edit ? 'Save changes' : 'Place Order';
+  const hint = $('missing-msg');
+  if (hint) {
+    hint.hidden = missing.length === 0;
+    if (missing.length) hint.innerHTML = `To place your order, please add: <strong>${missing.map(esc).join(', ')}</strong>.`;
+  }
   if (msg) {
     msg.hidden = !blocked;
     if (blocked) msg.textContent = `Your pin is about ${state.far.toFixed(1)} km away and we deliver up to ${Number(state.cfg.max_km)} km. Move the pin closer, or choose Dine in or call 0915 875 4860.`;
@@ -546,7 +567,7 @@ function askConfirm(form) {
   let where = '';
   if (!editing) {
     where = type === 'delivery' ? `Delivery to: ${form.delivery_address.value.trim()}`
-      : type === 'room_delivery' ? `To your room: ${form.room_number.value.trim()}` : 'Dine in';
+      : type === 'room_delivery' ? `To your room: ${form.room_number.value.trim()}` : type === 'pickup' ? 'Pickup at the restaurant' : 'Dine in';
     where += ` · ${form.name.value.trim()} · ${form.phone.value.trim()}`;
   }
   $('cf-where').textContent = where;
@@ -925,6 +946,7 @@ async function init() {
   $('my-orders').addEventListener('click', (e) => { if (e.target === $('my-orders')) $('my-orders').close(); });
   $('mo-form').addEventListener('submit', onLookup);
   $('mo-phone').addEventListener('input', () => $('mo-phone').closest('.field').classList.remove('invalid'));
+  form.addEventListener('input', () => updatePlaceBtn());
   form.addEventListener('input', (e) => {
     const f = e.target.closest('.field');
     if (f?.classList.contains('invalid')) f.classList.remove('invalid');

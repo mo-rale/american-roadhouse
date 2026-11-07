@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#14110E">
 <title>Order Online | American Roadhouse Hotel & Restaurant</title>
-<meta name="description" content="Order food online from American Roadhouse in Tugas, Candijay, Bohol. Delivery, dine-in, or delivery to your room.">
+<meta name="description" content="Order food online from American Roadhouse in Tugas, Candijay, Bohol. Delivery, pickup, dine-in, or delivery to your room.">
 <link rel="canonical" href="https://www.americanroadhousecandijay.com/order.html">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/brand/favicon-16.png">
@@ -123,6 +123,7 @@
             <legend>HOW WOULD YOU LIKE IT?</legend>
             <div class="opt-row" role="radiogroup">
               <label><input type="radio" name="order_type" value="delivery" checked><span>Delivery</span></label>
+              <label><input type="radio" name="order_type" value="pickup"><span>Pickup</span></label>
               <label><input type="radio" name="order_type" value="dine_in"><span>Dine in</span></label>
               <label><input type="radio" name="order_type" value="room_delivery"><span>To my room</span></label>
             </div>
@@ -174,6 +175,7 @@
             <div class="form-error" id="form-error" role="alert"></div>
             <p id="range-msg" class="banner error" role="alert" hidden style="margin:0 0 10px;font-size:13.5px;"></p>
             <button type="submit" class="btn btn-primary btn-block" id="place-btn">Place Order</button>
+            <p id="missing-msg" class="place-hint" role="status" aria-live="polite" hidden></p>
             <p class="place-note">Payment is collected by our staff when you receive your order.</p>
           </div>
         </form>
