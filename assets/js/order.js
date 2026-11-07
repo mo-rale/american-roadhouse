@@ -25,6 +25,8 @@ const state = {
   edit: null,                 // { id, number, fee, orig: Map(itemId -> qty), stash, notes } while changing a placed order
   far: null,                  // km of a pin that is beyond the delivery limit (blocks ordering)
   placing: false,
+  addrEdited: false,          // true once the customer has typed their own address
+  pinAddress: '',             // the address worked out from the pin
   query: '',                  // what the customer typed in the dish search box
 };
 
@@ -258,7 +260,54 @@ function refitPinMap() {
   };
   setTimeout(go, 60); setTimeout(go, 400);
 }
+// Turn the pin into a street address (OpenStreetMap's free lookup) and put it in the address box.
+// The customer can still edit it; once they type their own, later pin moves only offer the new one.
+let addrTimer = null, addrAbort = null;
+function addressFromOsm(j) {
+  const a = j.address || {};
+  const street = [a.house_number, a.road].filter(Boolean).join(' ');
+  const area = a.neighbourhood || a.quarter || a.hamlet || a.village || a.suburb || a.city_district;
+  const town = a.municipality || a.town || a.city || a.county;
+  const parts = [street, area, town, a.state || a.province].filter(Boolean);
+  const seen = new Set(), uniq = parts.filter((p) => { const k = p.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  if (uniq.length) return uniq.join(', ');
+  return String(j.display_name || '').split(',').slice(0, 4).join(',').trim();
+}
+function showAddressHint() {
+  const hint = $('addr-hint'), box = $('f-address');
+  if (!state.pinAddress) { hint.hidden = true; return; }
+  if (!state.addrEdited || !box.value.trim()) {
+    hint.innerHTML = 'Filled in from your pin. You can edit it, for example to add a house number or a landmark.';
+  } else if (box.value.trim() !== state.pinAddress) {
+    hint.innerHTML = `Address from your pin: ${esc(state.pinAddress)} <button type="button" class="link-btn" id="addr-use">Use it</button>`;
+  } else { hint.hidden = true; return; }
+  hint.hidden = false;
+}
+function fillAddressFromPin(lat, lng) {
+  clearTimeout(addrTimer);
+  addrTimer = setTimeout(async () => {
+    try {
+      addrAbort?.abort();
+      addrAbort = new AbortController();
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=en&lat=${lat}&lon=${lng}`, { signal: addrAbort.signal, headers: { Accept: 'application/json' } });
+      if (!r.ok) return;
+      const text = addressFromOsm(await r.json());
+      if (!text) return;
+      state.pinAddress = text;
+      const box = $('f-address');
+      if (!state.addrEdited || !box.value.trim()) {
+        box.value = text.slice(0, 300);
+        state.addrEdited = false;
+        box.closest('.field').classList.remove('invalid');
+        updatePlaceBtn();
+      }
+      showAddressHint();
+    } catch { /* no address lookup: the customer just types it */ }
+  }, 700);
+}
+
 function setPin(lat, lng) {
+  fillAddressFromPin(lat, lng);
   const st = $('pin-status');
   if (!cfgReady()) {
     state.pin = { lat, lng, km: null, fee: 0 }; state.far = null;
@@ -930,6 +979,11 @@ async function init() {
     }
   });
   $('pin-gps').addEventListener('click', useMyLocation);
+  $('f-address').addEventListener('input', () => { state.addrEdited = $('f-address').value.trim() !== ''; showAddressHint(); });
+  $('addr-hint').addEventListener('click', (e) => {
+    if (!e.target.closest('#addr-use')) return;
+    $('f-address').value = state.pinAddress; state.addrEdited = false; showAddressHint(); updatePlaceBtn();
+  });
   $('menu-q').addEventListener('input', debounce((e) => setSearch(e.target.value), 140));
   $('menu-q').addEventListener('keydown', (e) => { if (e.key === 'Escape') clearSearch(); });
   $('menu-q-clear').addEventListener('click', clearSearch);

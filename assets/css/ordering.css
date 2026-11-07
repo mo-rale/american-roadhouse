@@ -501,3 +501,8 @@ mark.hit{ background:#f3dfae; color:inherit; border-radius:3px; padding:0 1px; }
 .place-hint{ margin:10px 0 0; padding:9px 12px; border-radius:8px; background:#f6ecd7; color:#5c4420; font-size:13.5px; line-height:1.45; }
 .place-hint[hidden]{ display:none; }
 .place-hint strong{ font-weight:700; }
+
+/* address filled in from the map pin */
+.addr-hint{ margin:6px 0 0; font-size:12.5px; color:#6b6357; line-height:1.45; }
+.addr-hint[hidden]{ display:none; }
+.addr-hint .link-btn{ font-size:inherit; }
