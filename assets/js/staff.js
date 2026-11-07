@@ -188,6 +188,23 @@ const RES = {
     validate: (p) => (!p.menu_item_id && !(editing.row && !editing.row.menu_item_id) ? { menu_item_id: 'Choose a dish from the menu.' } : {}),
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
+  slideshow: {
+    label: 'Slideshow', noun: 'photo', table: 'restaurant_slides', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The photos that slide across the top of the Restaurant page, in this order. Grab the ⠿ handle and drag a photo to change its place. With 2 or more photos it plays by itself.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Description', (r) => esc(r.caption || '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true,
+    fields: [
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true, hint: 'A wide, landscape photo works best.' },
+      { key: 'caption', label: 'Description', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo, read aloud to blind visitors and used by Google.' },
+      { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
+    ],
+    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
   massage: {
     label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
     note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
@@ -308,7 +325,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['highlights', 'Highlights'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['highlights', 'Highlights'], ['slideshow', 'Slideshow'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -589,7 +606,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', restaurant_slides: 'slideshow', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
