@@ -60,11 +60,11 @@
 <div id="shared-navbar"></div>
 
 <!-- HERO -->
-<section class="hero" style="background-image:url('assets/venue/bar-sign.webp');background-position:center 30%;">
+<section class="hero" data-cms-bg="hero_image" style="background-image:url('assets/venue/bar-sign.webp');background-position:center 30%;">
   <div class="container hero-content">
-    <div class="hero-eyebrow">STAY IN COMFORT&nbsp;&nbsp;&middot;&nbsp;&nbsp;DINE IN STYLE&nbsp;&nbsp;&middot;&nbsp;&nbsp;ENJOY SENERITY</div>
-    <h1><span class="h1-name">American Roadhouse Hotel &amp; Restaurant</span>Your Comfortable Stay in Candijay, Bohol</h1>
-    <p class="lede">Enjoy a relaxing stay  &ndash; With a cozy, air-conditioned dining room or unwind on our roof deck and enjoy fresh countryside breeze of ricefields and mountain landscape.</p>
+    <div class="hero-eyebrow" data-cms="hero_eyebrow">STAY IN COMFORT&nbsp;&nbsp;&middot;&nbsp;&nbsp;DINE IN STYLE&nbsp;&nbsp;&middot;&nbsp;&nbsp;ENJOY SENERITY</div>
+    <h1><span class="h1-name" data-cms="hero_name">American Roadhouse Hotel &amp; Restaurant</span><span data-cms="hero_title">Your Comfortable Stay in Candijay, Bohol</span></h1>
+    <p class="lede" data-cms="hero_text">Enjoy a relaxing stay  &ndash; With a cozy, air-conditioned dining room or unwind on our roof deck and enjoy fresh countryside breeze of ricefields and mountain landscape.</p>
     <div class="hero-actions">
       <a href="contact.html?tab=booking#forms" class="btn btn-brass">Book Your Stay</a>
       <a href="order.html" class="btn btn-outline-light">Order food Online</a>
@@ -133,9 +133,9 @@
       <img class="guest-fallback" src="assets/rooms/Deluxe_suite.jpg" alt="Guest room at American Roadhouse with a private balcony" loading="lazy">
     </div>
     <div class="reveal">
-      <div class="eyebrow">WELCOME TO AMERICAN ROADHOUSE</div>
-      <h2 style="font-size:36px;margin-bottom:20px;">A Comfortable Place to Stay, Dine, and Unwind</h2>
-      <p class="lede" style="margin-bottom:28px;">Tucked into the rice fields of Tugas, American Roadhouse pairs simple, comfortable rooms with a restaurant and roof deck built for good food and easy company. It&rsquo;s the kind of place travelers use as a base for exploring Bohol &ndash; and locals use for a night out.</p>
+      <div class="eyebrow" data-cms="welcome_eyebrow">WELCOME TO AMERICAN ROADHOUSE</div>
+      <h2 style="font-size:36px;margin-bottom:20px;" data-cms="welcome_title">A Comfortable Place to Stay, Dine, and Unwind</h2>
+      <p class="lede" style="margin-bottom:28px;" data-cms="welcome_text">Tucked into the rice fields of Tugas, American Roadhouse pairs simple, comfortable rooms with a restaurant and roof deck built for good food and easy company. It&rsquo;s the kind of place travelers use as a base for exploring Bohol &ndash; and locals use for a night out.</p>
       <a href="contact.html#about" class="btn btn-outline">Discover More</a>
     </div>
   </div>
@@ -145,10 +145,10 @@
 <section class="section section-tight" style="background:var(--linen-deep);">
   <div class="container">
     <div class="section-heading center reveal">
-      <div class="eyebrow" style="justify-content:center;">WHY GUESTS CHOOSE US</div>
-      <h2>Built Around Comfort</h2>
+      <div class="eyebrow" style="justify-content:center;" data-cms="comfort_eyebrow">WHY GUESTS CHOOSE US</div>
+      <h2 data-cms="comfort_title">Built Around Comfort</h2>
     </div>
-    <div class="grid-4 reveal">
+    <div class="grid-4 reveal" id="home-features">
       <div class="feature-card">
         <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg></div>
         <h3 style="font-size:19px;margin-bottom:8px;">Comfortable Stay</h3>
@@ -280,10 +280,10 @@
 <section class="section section-tight" style="background:var(--linen-deep);">
   <div class="container">
     <div class="section-heading reveal">
-      <div class="eyebrow">A LOOK INSIDE</div>
-      <h2>Gallery</h2>
+      <div class="eyebrow" data-cms="gallery_eyebrow">A LOOK INSIDE</div>
+      <h2 data-cms="gallery_title">Gallery</h2>
     </div>
-    <div class="gallery-grid reveal">
+    <div class="gallery-grid reveal" id="home-gallery">
       <div class="gallery-item"><img src="assets/venue/roofdeck-wide-1.jpg" alt="Roof deck seating overlooking rice fields" loading="lazy"></div>
       <div class="gallery-item"><img src="assets/rooms/studio_room.jpg" alt="Guest room bed" loading="lazy"></div>
       <div class="gallery-item"><img src="assets/food/shrimp-pasta.jpg" alt="Shrimp pasta dish" loading="lazy"></div>
@@ -295,15 +295,15 @@
   </div>
 </section>
 
-<!-- DISCOVER CANDIJAY -->
+<!-- PLACES NEAR ME -->
 <section class="section" style="background:var(--linen-deep);">
   <div class="container">
     <div class="section-heading reveal">
-      <div class="eyebrow">BEYOND THE ROADHOUSE</div>
-      <h2>Discover Candijay</h2>
-      <p class="lede">Your comfortable base for exploring Bohol.</p>
+      <div class="eyebrow" data-cms="places_eyebrow">BEYOND THE ROADHOUSE</div>
+      <h2 data-cms="places_title">Places Near Me</h2>
+      <p class="lede" data-cms="places_text">Your comfortable base for exploring Bohol.</p>
     </div>
-    <div class="grid-3 reveal">
+    <div class="grid-3 reveal" id="home-places">
       <div class="card">
         <img src="assets/venue/roofdeck-wide-1.jpg" alt="Rice fields and mountains near Candijay" loading="lazy" style="height:190px;object-fit:cover;width:100%;">
         <div style="padding:20px;"><h4 style="font-size:16px;">Nearby Attractions</h4><p style="font-size:13.5px;color:#6b6357;margin-top:8px;">Bohol&rsquo;s countryside, beaches, and landmarks are within reach.</p></div>
@@ -344,10 +344,10 @@
 <section class="section" style="background:var(--linen-deep);">
   <div class="container" style="max-width:820px;">
     <div class="section-heading center reveal">
-      <div class="eyebrow" style="justify-content:center;">GOOD TO KNOW</div>
-      <h2>Frequently Asked Questions</h2>
+      <div class="eyebrow" style="justify-content:center;" data-cms="faq_eyebrow">GOOD TO KNOW</div>
+      <h2 data-cms="faq_title">Frequently Asked Questions</h2>
     </div>
-    <div class="reveal">
+    <div class="reveal" id="home-faqs">
       <div class="faq-item">
         <button class="faq-question">What room options are available?<span class="faq-icon">+</span></button>
         <div class="faq-answer"><p>We offer a small number of air-conditioned rooms. See the Rooms page for current options, or contact us for full details and rates.</p></div>
@@ -377,10 +377,10 @@
 </section>
 
 <!-- FINAL CTA -->
-<section class="final-cta" style="background-image:url('assets/venue/dining-room-flowers.webp');">
+<section class="final-cta" data-cms-bg="cta_image" style="background-image:url('assets/venue/dining-room-flowers.webp');">
   <div class="container">
-    <h2>Ready for Your Stay?</h2>
-    <p>Make American Roadhouse part of your Candijay experience.</p>
+    <h2 data-cms="cta_title">Ready for Your Stay?</h2>
+    <p data-cms="cta_text">Make American Roadhouse part of your Candijay experience.</p>
     <div class="hero-actions">
       <a href="contact.html?tab=booking#forms" class="btn btn-brass">Book Your Stay</a>
       <a href="contact.html" class="btn btn-outline-light">Contact Us</a>
@@ -396,5 +396,6 @@
 <script type="module" src="assets/js/live-prices.js"></script>
 <script type="module" src="assets/js/special-guests.js"></script>
 <script type="module" src="assets/js/home-highlights.js"></script>
+<script type="module" src="assets/js/home-content.js"></script>
 </body>
 </html>

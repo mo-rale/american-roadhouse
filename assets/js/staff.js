@@ -53,6 +53,7 @@ const isAdmin = () => S.profile?.role === 'admin';
 const onOff = (v, a = 'Yes', b = 'No') => `<span class="badge ${v ? '' : 'bad'}">${v ? a : b}</span>`;
 
 /* ---------- resource definitions (drive the generic CRUD tables) ---------- */
+const ICON_LABEL = { bed: 'Bed', dining: 'Fork and knife', pin: 'Map pin', people: 'People', star: 'Star', wifi: 'WiFi', car: 'Car', sun: 'Sun' };
 const PAGE_LABEL = { rooms: 'Rooms', restaurant: 'Restaurant', services: 'Services', gallery: 'Gallery', contact: 'About & Contact', booking: 'Booking' };
 const VENUE_LABEL = { main: 'Main', roofdeck: 'Roof Deck' };
 // menu sections grouped by venue, so the picker is short headings with their sections under them
@@ -159,13 +160,14 @@ const RES = {
       ['Caption', (r) => esc(r.caption || '—')],
       ['Category', (r) => esc({ rooms: 'Rooms', hotel: 'Hotel', restaurant: 'Restaurant', food: 'Food' }[r.category] || r.category)],
     ],
-    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    toggles: [{ key: 'is_visible', label: 'Shown' }, { key: 'show_on_home', label: 'On home page' }],
     sortable: true,
     fields: [
       { key: 'image_url', label: 'Photo', type: 'image', span2: true },
       { key: 'caption', label: 'Caption', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo. It is also read aloud to blind visitors and helps Google understand the photo.' },
       { key: 'category', label: 'Category', type: 'select', required: true, options: () => [['rooms', 'Rooms'], ['hotel', 'Hotel'], ['restaurant', 'Restaurant'], ['food', 'Food']], hint: 'Which filter button on the Gallery page shows this photo.' },
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
+      { key: 'show_on_home', label: 'Also show in the Gallery preview on the home page (the first 8 are shown)', type: 'checkbox', def: false },
     ],
     validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
     beforeSave: (payload, row, rows) => { if (!row && !payload.sort_order) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
@@ -204,6 +206,67 @@ const RES = {
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
     ],
     validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
+  features: {
+    label: 'Why choose us', noun: 'card', table: 'home_features', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The cards under “Built Around Comfort” on the home page, in this order. Grab the ⠿ handle and drag a card to change its place.',
+    columns: [
+      ['Icon', (r) => esc(ICON_LABEL[r.icon] || r.icon)],
+      ['Title', (r) => esc(r.title || '—')],
+      ['Text', (r) => esc(r.body || '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true,
+    fields: [
+      { key: 'icon', label: 'Icon', type: 'select', required: true, options: () => Object.entries(ICON_LABEL) },
+      { key: 'title', label: 'Title', type: 'text', required: true, max: 60, span2: true },
+      { key: 'body', label: 'Text', type: 'textarea', required: true, max: 200, span2: true },
+      { key: 'is_visible', label: 'Show on the home page', type: 'checkbox', def: true },
+    ],
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
+  places: {
+    label: 'Places near me', noun: 'place', table: 'home_places', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The cards in the “Places Near Me” section of the home page, in this order. Grab the ⠿ handle and drag a place to change its place in the list.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Place', (r) => esc(r.name || '—')],
+      ['Distance', (r) => esc(r.distance || '—')],
+      ['Note', (r) => esc(r.note || '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true,
+    fields: [
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
+      { key: 'name', label: 'Name of the place', type: 'text', required: true, max: 80, span2: true },
+      { key: 'distance', label: 'How far', type: 'text', max: 40, hint: 'For example: 5 min drive, or 3 km.' },
+      { key: 'map_url', label: 'Google Maps link (optional)', type: 'text', max: 400, hint: 'Paste the Share link from Google Maps. It must start with https://. The card then opens the map.' },
+      { key: 'note', label: 'Short note', type: 'textarea', max: 200, span2: true },
+      { key: 'is_visible', label: 'Show on the home page', type: 'checkbox', def: true },
+    ],
+    validate: (p) => {
+      const e = {};
+      if (!p.image_url) e.image_url = 'Please choose a photo.';
+      if (p.map_url && !/^https:\/\//.test(p.map_url)) e.map_url = 'The link must start with https://';
+      return e;
+    },
+    beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
+  faqs: {
+    label: 'FAQ', noun: 'question', table: 'home_faqs', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The questions and answers at the bottom of the home page, in this order. Grab the ⠿ handle and drag a question to change its place.',
+    columns: [
+      ['Question', (r) => esc(r.question || '—')],
+      ['Answer', (r) => esc((r.answer || '').length > 90 ? `${r.answer.slice(0, 90)}…` : r.answer || '—')],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true,
+    fields: [
+      { key: 'question', label: 'Question', type: 'text', required: true, max: 160, span2: true },
+      { key: 'answer', label: 'Answer', type: 'textarea', required: true, max: 600, span2: true },
+      { key: 'is_visible', label: 'Show on the home page', type: 'checkbox', def: true },
+    ],
     beforeSave: (payload, row, rows) => { if (!row) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
   },
   massage: {
@@ -425,7 +488,7 @@ function startApp() {
 
 // screens that live under a top tab, shown as a row of sub-tabs
 const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
-const WEB_SUB = [['highlights', 'Home highlights'], ['slideshow', 'Slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
+const WEB_SUB = [['hometext', 'Home text'], ['highlights', 'Menu highlights'], ['features', 'Why choose us'], ['places', 'Places near me'], ['faqs', 'FAQ'], ['slideshow', 'Slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
 const TAB_GROUP = {};
 MENU_SUB.forEach(([k]) => { TAB_GROUP[k] = 'menu'; });
 WEB_SUB.forEach(([k]) => { TAB_GROUP[k] = 'website'; });
@@ -435,7 +498,7 @@ function showTab(tab) {
   S.rng = { orders: {}, inquiries: {}, history: {} };
   S.isub = S.isub || 'booking';
   S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.ractive = ''; S.rxprice = ''; S.rpage = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
-  if (tab === 'website') { showTab('highlights'); return; }
+  if (tab === 'website') { showTab('hometext'); return; }
   document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (TAB_GROUP[tab] || tab))));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
@@ -444,6 +507,7 @@ function showTab(tab) {
   if (tab === 'history') return loadHistory();
   if (tab === 'staff') return loadStaff();
   if (tab === 'delivery') return loadDelivery();
+  if (tab === 'hometext') return loadHomeText();
   return loadResource(tab);
 }
 
@@ -616,7 +680,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', page_slides: 'slideshow', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', home_highlights: 'highlights', home_features: 'features', home_places: 'places', home_faqs: 'faqs', page_slides: 'slideshow', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 
@@ -844,7 +908,7 @@ async function prepareImage(file) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error('Please choose a JPG, PNG or WebP image.');
   if (file.size > 15 * 1024 * 1024) throw new Error('That photo is larger than 15 MB. Please choose a smaller one.');
   const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
   c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
   const ctx = c.getContext('2d');
@@ -1525,6 +1589,81 @@ async function setStaff(email, role, active) {
   return true;
 }
 
+/* ---------- home page text and photos ---------- */
+const HOME_TEXT = [
+  ['Top of the page (hero)', [
+    ['hero_eyebrow', 'Small line above the title', 'text', 200],
+    ['hero_name', 'Name line', 'text', 100],
+    ['hero_title', 'Main headline', 'text', 120],
+    ['hero_text', 'Intro text', 'textarea', 400],
+    ['hero_image', 'Background photo', 'image']]],
+  ['Welcome', [
+    ['welcome_eyebrow', 'Small line above the title', 'text', 100],
+    ['welcome_title', 'Title', 'text', 120],
+    ['welcome_text', 'Text', 'textarea', 600]]],
+  ['“Built Around Comfort” heading', [
+    ['comfort_eyebrow', 'Small line above the title', 'text', 100],
+    ['comfort_title', 'Title', 'text', 100]]],
+  ['Gallery preview heading', [
+    ['gallery_eyebrow', 'Small line above the title', 'text', 100],
+    ['gallery_title', 'Title', 'text', 100]]],
+  ['“Places Near Me” heading', [
+    ['places_eyebrow', 'Small line above the title', 'text', 100],
+    ['places_title', 'Title', 'text', 100],
+    ['places_text', 'Line under the title', 'text', 200]]],
+  ['FAQ heading', [
+    ['faq_eyebrow', 'Small line above the title', 'text', 100],
+    ['faq_title', 'Title', 'text', 100]]],
+  ['Bottom banner', [
+    ['cta_title', 'Title', 'text', 100],
+    ['cta_text', 'Text', 'text', 200],
+    ['cta_image', 'Background photo', 'image']]],
+];
+
+async function loadHomeText() {
+  try {
+    const { data, error } = await supabase.from('site_content').select('key, value');
+    if (error) throw error;
+    S.homeText = Object.fromEntries(data.map((r) => [r.key, r.value]));
+    S.pendingImg = {};
+    $('st-panel').innerHTML = `${menuSubtabs('hometext')}<div class="st-toolbar"><h2 style="font-size:22px;">Home page text</h2></div>
+      <p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">Change the words and photos on the home page. Leave a box empty to go back to the standard text. The lists (menu highlights, cards, places, FAQ, gallery) have their own tabs.</p>
+      <form id="home-form" novalidate>
+        ${HOME_TEXT.map(([title, fields]) => `<h3 style="margin:22px 0 10px;">${esc(title)}</h3>
+          <div class="grid-fields">${fields.map(([key, label, type, max]) => fieldHtml({ key, label, type, max, span2: true }, { [key]: S.homeText[key] || '' })).join('')}</div>`).join('')}
+        <div class="form-error" id="home-error" role="alert"></div>
+        <p style="margin-top:20px;"><button type="submit" class="btn btn-primary" id="home-save">Save home page text</button></p>
+      </form>`;
+  } catch (err) { panelError(err, loadHomeText); }
+}
+
+async function saveHomeText(form) {
+  const errBox = $('home-error'); errBox.classList.remove('show');
+  const btn = $('home-save');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…';
+  const upserts = [], deletes = [], oldImages = [];
+  try {
+    for (const [, fields] of HOME_TEXT) {
+      for (const [key, , type] of fields) {
+        let v = (form.elements[key]?.value || '').trim();
+        if (type === 'image' && S.pendingImg[key]) v = await uploadImage(S.pendingImg[key], 'site');
+        const old = S.homeText[key] || '';
+        if (v === old) continue;
+        if (type === 'image' && old) oldImages.push(old);
+        if (v) upserts.push({ key, value: v, updated_at: new Date().toISOString() }); else deletes.push(key);
+      }
+    }
+    if (upserts.length) { const { error } = await supabase.from('site_content').upsert(upserts); if (error) throw error; }
+    if (deletes.length) { const { error } = await supabase.from('site_content').delete().in('key', deletes); if (error) throw error; }
+    oldImages.forEach(removeImage);
+    toast(upserts.length || deletes.length ? 'Saved. The home page shows it right away.' : 'Nothing was changed.');
+    loadHomeText();
+  } catch (err) {
+    errBox.textContent = friendlyError(err); errBox.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Save home page text';
+  }
+}
+
 /* ---------- delivery fee settings ---------- */
 const DEL_FIELDS = [
   ['base_fee', 'Base fee (PHP)', 'Charged for the first kilometres, up to the distance below.'],
@@ -1838,6 +1977,7 @@ function init() {
     if (e.key === 'Escape' && e.target.closest('.qp-form')) renderResource(S.tab);
   });
   $('st-panel').addEventListener('submit', async (e) => {
+    if (e.target.id === 'home-form') { e.preventDefault(); saveHomeText(e.target); return; }
     if (e.target.dataset.qp) { e.preventDefault(); saveQuickPrice(e.target); return; }
     if (e.target.dataset.qs) { e.preventDefault(); saveQuickStock(e.target); return; }
     if (e.target.id === 'delivery-form') { e.preventDefault(); await onSaveDelivery(); return; }

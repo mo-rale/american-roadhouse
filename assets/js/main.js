@@ -100,7 +100,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /* FAQ accordion */
-  document.querySelectorAll('.faq-item').forEach(item => {
+  window.initFaq = function () { document.querySelectorAll('.faq-item').forEach(item => {
+    if (item.dataset.faqBound) return;
+    item.dataset.faqBound = '1';
     const btn = item.querySelector('.faq-question');
     const ans = item.querySelector('.faq-answer');
     btn?.addEventListener('click', () => {
@@ -114,7 +116,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       item.classList.toggle('open', !isOpen);
       ans.style.maxHeight = !isOpen ? ans.scrollHeight + 'px' : null;
     });
-  });
+  }); };
+  window.initFaq();
 
   /* Gallery: filters and photo viewer. initGallery() can run again when the page rebuilds the gallery from the database. */
   const lightbox = document.getElementById('lightbox');
