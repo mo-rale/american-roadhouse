@@ -117,21 +117,30 @@ const RES = {
     },
   },
   extras: {
-    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, categories(name, venue)', admin: false, order: ['sort_order', 'name'],
-    note: 'Add-ons available for every dish in a selected menu section. Customers see these when adding a dish from that section.',
+    label: 'Extras', noun: 'extra', table: 'menu_extras', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['sort_order', 'name'],
+    note: 'Add-ons a customer can tick for one dish, such as extra cheese or a sauce. Each extra adds its price on top of the dish price.',
     columns: [
+      ['Dish', (r) => esc(r.menu_items?.name || '—')],
       ['Extra', (r) => esc(r.name)],
-      ['Section', (r) => esc(r.categories ? `${VENUE_LABEL[r.categories.venue] || ''} · ${r.categories.name}` : '—')],
       ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
-      { key: 'category_id', label: 'Section', type: 'select', required: true, groups: () => sectionGroups(), hint: 'This extra is offered for every dish in this section.' },
-      { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80 },
+      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, groups: () => dishGroups(), hint: 'Dishes are grouped by menu section. The extra is offered only for the dish you pick.' },
+      { key: 'name', label: 'Extra (what customers see)', type: 'text', required: true, max: 80, hint: 'For example: Extra cheese.' },
       { key: 'price', label: 'Extra price (PHP)', type: 'money0', hint: 'Added to the dish price for each portion. Use 0 for a free option.' },
-      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first.' },
+      { key: 'sort_order', label: 'Order in the list', type: 'int', def: 0, hint: 'Lower numbers come first.' },
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
+      { key: 'copy_section', label: 'Also add this extra to the other dishes in the same menu section', type: 'checkbox', def: false, onlyNew: true },
     ],
+    beforeSave: (payload, row) => { S.copyExtra = !row && payload.copy_section; delete payload.copy_section; },
+    siblings: (payload) => {
+      if (!S.copyExtra) return [];
+      const dish = S.menuItems.find((i) => i.id === payload.menu_item_id);
+      if (!dish) return [];
+      const has = new Set(currentRows.filter((r) => (r.name || '').toLowerCase() === payload.name.toLowerCase()).map((r) => r.menu_item_id));
+      return S.menuItems.filter((i) => i.category_id === dish.category_id && i.id !== dish.id && !has.has(i.id)).map((i) => ({ ...payload, menu_item_id: i.id }));
+    },
   },
   options: {
     label: 'Sizes & flavors', noun: 'option', table: 'menu_options', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['option_type', 'sort_order', 'name'],
@@ -1034,6 +1043,25 @@ function renderOptionGroups(rows, canWrite) {
     </details>`).join('')}</div>`;
 }
 
+// Extras: one card per dish with its extras listed inside
+function renderExtraGroups(rows, canWrite) {
+  const byDish = new Map();
+  rows.forEach((r) => { if (!byDish.has(r.menu_item_id)) byDish.set(r.menu_item_id, { dish: r.menu_items, id: r.menu_item_id, list: [] }); byDish.get(r.menu_item_id).list.push(r); });
+  const groups = [...byDish.values()].sort((a, b) => (a.dish?.name || '').localeCompare(b.dish?.name || ''));
+  const open = groups.length <= 8 || Boolean(S.rq);
+  const where = (d) => `${VENUE_LABEL[d?.categories?.venue] || ''} · ${d?.categories?.name || ''}`;
+  return `<p class="count-line">${rows.length} extra${rows.length === 1 ? '' : 's'} on ${groups.length} dish${groups.length === 1 ? '' : 'es'}</p>
+    <div class="opt-groups">${groups.map((g) => `<details class="opt-group" ${open ? 'open' : ''}>
+      <summary><span class="opt-dish"><strong>${esc(g.dish?.name || 'Unknown dish')}</strong><small>${esc(where(g.dish))}</small></span>
+        <span class="opt-count">${g.list.length} extra${g.list.length === 1 ? '' : 's'}</span></summary>
+      <ul class="opt-list">${g.list.map((r) => `<li class="${r.is_active ? '' : 'is-off'}">
+        <span class="opt-name">${esc(r.name)}</span><span class="opt-price">${Number(r.price) > 0 ? `<span class="price">+${peso(r.price)}</span>` : '<span class="muted">Free</span>'}</span>
+        <label class="switch"><input type="checkbox" data-toggle="is_active" data-id="${esc(r.id)}" ${r.is_active ? 'checked' : ''} ${canWrite ? '' : 'disabled'} aria-label="Available: ${esc(r.name)}"><span></span></label>
+        ${canWrite ? `<span class="row-actions"><button type="button" class="btn-xs" data-edit="${esc(r.id)}">Edit</button><button type="button" class="btn-xs danger" data-delete="${esc(r.id)}">Delete</button></span>` : ''}</li>`).join('')}</ul>
+      ${canWrite ? `<div class="opt-add"><button type="button" class="btn-xs" data-addextra="${esc(g.id)}">+ Add an extra to ${esc(g.dish?.name || 'this dish')}</button></div>` : ''}
+    </details>`).join('')}</div>`;
+}
+
 function renderResource(key) {
   const cfg = RES[key];
   const canWrite = !cfg.admin || isAdmin();
@@ -1041,13 +1069,11 @@ function renderResource(key) {
     $('st-panel').innerHTML = `${menuSubtabs(key)}<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${key === 'options' ? `<select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
+        ${key === 'options' || key === 'extras' ? `<select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
         ${key === 'slideshow' ? `<select id="r-page" class="st-select" aria-label="Filter by page"><option value="">All pages</option>${Object.entries(PAGE_LABEL).map(([v, l]) => `<option value="${v}" ${S.rpage === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
           <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
-        ${key === 'extras' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
-          <select id="r-xprice" class="st-select" aria-label="Filter by price"><option value="">Any price</option><option value="paid">Paid</option><option value="free">Free</option></select>` : ''}
         ${canWrite && cfg.max && currentRows.length >= cfg.max ? `<span class="badge">Maximum of ${cfg.max} reached. Delete one to add another.</span>` : canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
       ${cfg.note ? `<p class="count-line" style="text-transform:none;letter-spacing:0;margin-bottom:14px;">${esc(cfg.note)}</p>` : ''}
@@ -1070,6 +1096,7 @@ function renderResource(key) {
     return;
   }
   if (key === 'options') { body.innerHTML = renderOptionGroups(rows, canWrite); return; }
+  if (key === 'extras') { body.innerHTML = renderExtraGroups(rows, canWrite); return; }
   const drag = Boolean(cfg.sortable && canWrite && !q);
   const heads = [...cfg.columns.map((c) => c[0]), ...cfg.toggles.map((t) => t.label)];
   const td = (h, html, cls = '') => `<td data-label="${esc(h)}" class="${cls}">${html}</td>`;
@@ -1175,10 +1202,10 @@ function openDialog(key, row, preset = null) {
   editing = { key, row };
   S.pendingImg = {};
   const base = row || preset;
-  const lockedDish = key === 'options' && !row && preset?.menu_item_id ? S.menuItems.find((i) => i.id === preset.menu_item_id) : null;
-  const title = lockedDish ? `Add a size or flavor to ${lockedDish.name}` : `${row ? 'Edit' : 'Add'} ${cfg.noun}`;
+  const lockedDish = (key === 'options' || key === 'extras') && !row && preset?.menu_item_id ? S.menuItems.find((i) => i.id === preset.menu_item_id) : null;
+  const title = lockedDish ? `Add ${key === 'extras' ? 'an extra' : 'a size or flavor'} to ${lockedDish.name}` : `${row ? 'Edit' : 'Add'} ${cfg.noun}`;
   $('dlg-form').innerHTML = `<h3>${esc(title)}</h3>
-    <div class="grid-fields">${cfg.fields.map((f) => (lockedDish && f.key === 'menu_item_id'
+    <div class="grid-fields">${cfg.fields.filter((f) => !f.onlyNew || !row).map((f) => (lockedDish && f.key === 'menu_item_id'
       ? `<input type="hidden" id="fld-menu_item_id" name="menu_item_id" value="${esc(lockedDish.id)}">`
       : fieldHtml(f, base))).join('')}</div>
     <div class="form-error" id="dlg-error" role="alert" style="margin-top:14px;"></div>
@@ -1192,6 +1219,7 @@ function openDialog(key, row, preset = null) {
 function collect(cfg, form) {
   const payload = {}, errors = {};
   for (const f of cfg.fields) {
+    if (f.onlyNew && editing.row) continue;
     const el = form.elements[f.key];
     let v = f.type === 'checkbox' ? el.checked : el.value.trim();
     let bad = null;
@@ -1265,7 +1293,7 @@ async function onSave(e) {
   }
   const q = editing.row
     ? supabase.from(cfg.table).update(payload).eq('id', editing.row.id)
-    : supabase.from(cfg.table).insert(payload);
+    : supabase.from(cfg.table).insert(cfg.siblings ? [payload, ...cfg.siblings(payload)] : payload);
   const { error } = await q;
   btn.disabled = false; btn.textContent = 'Save';
   if (error) {
@@ -1920,6 +1948,7 @@ function init() {
       if (S.sound) beep(S.tab === 'inquiries' ? 'inquiry' : 'order');
       if (S.tab === 'inquiries') renderInquiries(); else renderOrders();
     }
+    else if (t.dataset.addextra) openDialog('extras', null, { menu_item_id: t.dataset.addextra });
     else if (t.dataset.addopt) openDialog('options', null, { menu_item_id: t.dataset.addopt, option_type: 'flavor' });
     else if (t.dataset.new) openDialog(S.tab, null);
     else if (t.dataset.edit) openDialog(S.tab, currentRows.find((r) => r.id === t.dataset.edit));
