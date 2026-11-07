@@ -150,6 +150,26 @@ const RES = {
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
     ],
   },
+  gallery: {
+    label: 'Gallery', noun: 'photo', table: 'gallery_photos', select: '*', admin: false, order: ['sort_order', 'created_at'],
+    note: 'The photos on the website Gallery page, in this order. Add a photo with a caption and a category, hide one you do not want shown for now, or delete it.',
+    columns: [
+      ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
+      ['Caption', (r) => esc(r.caption || '—')],
+      ['Category', (r) => esc({ rooms: 'Rooms', hotel: 'Hotel', restaurant: 'Restaurant', food: 'Food' }[r.category] || r.category)],
+      ['Order', (r) => String(r.sort_order)],
+    ],
+    toggles: [{ key: 'is_visible', label: 'Shown' }],
+    fields: [
+      { key: 'image_url', label: 'Photo', type: 'image', span2: true },
+      { key: 'caption', label: 'Caption', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo. It is also read aloud to blind visitors and helps Google understand the photo.' },
+      { key: 'category', label: 'Category', type: 'select', required: true, options: () => [['rooms', 'Rooms'], ['hotel', 'Hotel'], ['restaurant', 'Restaurant'], ['food', 'Food']], hint: 'Which filter button on the Gallery page shows this photo.' },
+      { key: 'sort_order', label: 'Position', type: 'int', def: 0, hint: 'Lower numbers come first. Leave 0 for a new photo and it goes to the end.' },
+      { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
+    ],
+    validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
+    beforeSave: (payload, row, rows) => { if (!row && !payload.sort_order) payload.sort_order = Math.max(0, ...rows.map((r) => Number(r.sort_order) || 0)) + 10; },
+  },
   massage: {
     label: 'Massage', noun: 'massage', table: 'massage_services', select: '*', admin: true, order: ['sort_order', 'name'],
     note: 'The massage types and prices customers see when they click Massage on the Services page. Hide a type to remove it from the page without deleting it.',
@@ -270,7 +290,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -551,7 +571,7 @@ async function deleteOrder(id) {
 const refreshOrders = debounce(() => loadOrders(), 250);
 
 const TAB_FOR_TABLE = {
-  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', price_history: 'history',
+  menu_items: 'menu', menu_extras: 'extras', menu_options: 'options', categories: 'sections', room_rates: 'rooms', massage_services: 'massage', special_guests: 'guests', gallery_photos: 'gallery', price_history: 'history',
 };
 const isEditing = () => $('dlg').open || $('pwd')?.open || $('cfm').open || document.querySelector('.qp-form');
 

@@ -99,41 +99,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  /* Gallery filters */
-  const filters = document.querySelectorAll('.gallery-filter');
-  const items = document.querySelectorAll('.gallery-item');
-  filters.forEach(f => f.addEventListener('click', () => {
-    filters.forEach(x => x.classList.remove('active'));
-    f.classList.add('active');
-    const cat = f.dataset.filter;
-    items.forEach(it => {
-      it.style.display = (cat === 'all' || it.dataset.cat === cat) ? '' : 'none';
-    });
-  }));
-
-  /* Lightbox */
+  /* Gallery: filters and photo viewer. initGallery() can run again when the page rebuilds the gallery from the database. */
   const lightbox = document.getElementById('lightbox');
-  if (lightbox){
-    const lbImg = document.getElementById('lightbox-img');
-    const gallery = Array.from(document.querySelectorAll('.gallery-item img'));
-    let idx = 0;
-    const show = (i) => {
-      if (!gallery.length || !lbImg) return;
-      idx = (i + gallery.length) % gallery.length;
-      lbImg.src = gallery[idx].src;
-      lbImg.alt = gallery[idx].alt;
-    };
-    const closeLightbox = () => {
-      lightbox.classList.remove('open');
-      lightbox.setAttribute('aria-hidden', 'true');
-      gallery[idx]?.closest('.gallery-item')?.focus();
-    };
-    document.querySelectorAll('.gallery-item').forEach((el, i) => {
+  let lbIdx = 0, lbBound = false;
+  const photos = () => Array.from(document.querySelectorAll('.gallery-item img'));
+  const showPhoto = (i) => {
+    const g = photos(), lbImg = document.getElementById('lightbox-img');
+    if (!g.length || !lbImg) return;
+    lbIdx = (i + g.length) % g.length;
+    lbImg.src = g[lbIdx].src;
+    lbImg.alt = g[lbIdx].alt;
+  };
+  const closeLightbox = () => {
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    photos()[lbIdx]?.closest('.gallery-item')?.focus();
+  };
+  window.initGallery = function () {
+    const filters = document.querySelectorAll('.gallery-filter');
+    const items = document.querySelectorAll('.gallery-item');
+    filters.forEach(f => f.addEventListener('click', () => {
+      filters.forEach(x => x.classList.remove('active'));
+      f.classList.add('active');
+      const cat = f.dataset.filter;
+      items.forEach(it => {
+        it.style.display = (cat === 'all' || it.dataset.cat === cat) ? '' : 'none';
+      });
+    }));
+    if (!lightbox) return;
+    const g = photos();
+    items.forEach((el, i) => {
       el.setAttribute('role', 'button');
       el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-label', `View image: ${gallery[i]?.alt || 'Gallery photo'}`);
+      el.setAttribute('aria-label', `View image: ${g[i]?.alt || 'Gallery photo'}`);
       const open = () => {
-        show(i);
+        showPhoto(i);
         lightbox.classList.add('open');
         lightbox.setAttribute('aria-hidden', 'false');
         document.getElementById('lightbox-close')?.focus();
@@ -143,18 +143,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
       });
     });
+    if (lbBound) return;
+    lbBound = true;
     lightbox.setAttribute('aria-hidden', 'true');
     document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
-    document.getElementById('lightbox-prev')?.addEventListener('click', () => show(idx - 1));
-    document.getElementById('lightbox-next')?.addEventListener('click', () => show(idx + 1));
+    document.getElementById('lightbox-prev')?.addEventListener('click', () => showPhoto(lbIdx - 1));
+    document.getElementById('lightbox-next')?.addEventListener('click', () => showPhoto(lbIdx + 1));
     lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
     document.addEventListener('keydown', (e) => {
       if (!lightbox.classList.contains('open')) return;
       if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowRight') show(idx + 1);
-      if (e.key === 'ArrowLeft') show(idx - 1);
+      if (e.key === 'ArrowRight') showPhoto(lbIdx + 1);
+      if (e.key === 'ArrowLeft') showPhoto(lbIdx - 1);
     });
-  }
+  };
+  window.initGallery();
 
   /* Tabs (Booking / Contact) */
   document.querySelectorAll('.tab-btn').forEach(btn => {
