@@ -325,7 +325,7 @@ async function onLogin(e) {
 
 /* ---------- app shell ---------- */
 function tabsForRole() {
-  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['guests', 'Special guests'], ['gallery', 'Gallery'], ['highlights', 'Highlights'], ['slideshow', 'Slideshow'], ['history', 'Price history']];
+  const t = [['orders', 'Orders'], ['inquiries', 'Inquiries'], ['menu', 'Menu'], ['delivery', 'Delivery fee'], ['rooms', 'Room rates'], ['massage', 'Massage'], ['website', 'Website'], ['history', 'Price history']];
   if (isAdmin()) t.push(['staff', 'Staff']);
   return t;
 }
@@ -422,12 +422,20 @@ function startApp() {
   if (!isInqTab()) loadInquiries();
 }
 
+// screens that live under a top tab, shown as a row of sub-tabs
+const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
+const WEB_SUB = [['highlights', 'Home highlights'], ['slideshow', 'Restaurant slideshow'], ['gallery', 'Gallery'], ['guests', 'Special guests']];
+const TAB_GROUP = {};
+MENU_SUB.forEach(([k]) => { TAB_GROUP[k] = 'menu'; });
+WEB_SUB.forEach(([k]) => { TAB_GROUP[k] = 'website'; });
+
 function showTab(tab) {
   S.tab = tab;
   S.rng = { orders: {}, inquiries: {}, history: {} };
   S.isub = S.isub || 'booking';
   S.rq = ''; S.iq = ''; S.rcat = ''; S.rvenue = ''; S.rstock = ''; S.ractive = ''; S.rxprice = ''; S.hq = ''; S.hf = 'all'; S.hlimit = 30;
-  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'sections' || tab === 'extras' ? 'menu' : tab))));
+  if (tab === 'website') { showTab('highlights'); return; }
+  document.querySelectorAll('#st-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (TAB_GROUP[tab] || tab))));
   const p = $('st-panel');
   p.innerHTML = '<div class="skel" style="height:140px;"></div>';
   if (tab === 'orders') return loadOrders();
@@ -920,9 +928,8 @@ async function ensureCategories() {
 
 const rowText = (r) => [r.name, r.code, r.slug, r.description, r.categories?.name, r.menu_items?.name].filter(Boolean).join(' ').toLowerCase();
 
-const MENU_SUB = [['menu', 'Items'], ['sections', 'Sections'], ['extras', 'Extras'], ['options', 'Sizes & flavors']];
-const menuSubtabs = (key) => (key === 'menu' || key === 'sections' || key === 'extras' || key === 'options'
-  ? `<div class="subtabs" role="tablist" aria-label="Menu">${MENU_SUB.map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
+const menuSubtabs = (key) => (TAB_GROUP[key]
+  ? `<div class="subtabs" role="tablist" aria-label="${TAB_GROUP[key] === 'menu' ? 'Menu' : 'Website'}">${(TAB_GROUP[key] === 'menu' ? MENU_SUB : WEB_SUB).map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
   : '');
 
 // "Venue - Section" groups of dishes for the picker, so a long menu is easy to scan
