@@ -41,6 +41,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           link.setAttribute('aria-current', 'page');
         }
       });
+      // on the order page the bottom bar does not need its own Order button (Call and Book Now stay)
+      if (/^order(\.html)?$/.test(currentPage)) document.querySelector('#mobile-bottom-bar .bar-order')?.remove();
     } catch (error) {
       console.error('Unable to load shared navbar.', error);
     }
