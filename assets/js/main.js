@@ -378,3 +378,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('pageshow', () => setTimeout(enforceDateRanges, 0));
 
 });
+
+/* Facebook / Messenger / Instagram / TikTok in-app browsers: ordering must happen in the phone's real browser
+   (in-app browsers block the delivery location, break saved orders and cannot install the app). */
+(() => {
+  const ua = navigator.userAgent || '';
+  const APPS = [[/Messenger|FB_IAB\/MESSENGER|MessengerForiOS/i, 'Messenger'], [/FBAN|FBAV|FB_IAB|FBIOS/i, 'Facebook'], [/Instagram/i, 'Instagram'],
+    [/TikTok|musical_ly|BytedanceWebview/i, 'TikTok'], [/Snapchat/i, 'Snapchat'], [/Line\//i, 'LINE'], [/MicroMessenger/i, 'WeChat'], [/Twitter/i, 'X']];
+  const hit = APPS.find(([re]) => re.test(ua));
+  const forced = /[?&]inapp=1\b/.test(location.search);           // for testing the pop-up in a normal browser
+  if (!hit && !forced) return;
+  const appName = hit ? hit[1] : 'Facebook';
+  const isAndroid = /Android/i.test(ua);
+  const url = location.origin + '/order.html';
+  const onOrderPage = /\/order(\.html)?$/.test(location.pathname);
+
+  let dlg;
+  const build = (dismissable) => {
+    if (dlg) dlg.remove();
+    dlg = document.createElement('dialog');
+    dlg.className = 'inapp-dlg';
+    dlg.setAttribute('aria-labelledby', 'inapp-title');
+    const intent = `intent://${location.host}/order.html#Intent;scheme=https;action=android.intent.action.VIEW;end`;
+    dlg.innerHTML = `<div class="inapp-body">
+      <h3 id="inapp-title">Open in your browser to order</h3>
+      <p>You are viewing this page inside the ${appName} app. To place an order, please open it in your phone&rsquo;s browser, so your delivery location and your order work properly.</p>
+      ${isAndroid ? `<a class="btn btn-brass inapp-go" href="${intent}">Open in browser</a>` : ''}
+      <ol class="inapp-steps"><li>Tap the <strong>&bull;&bull;&bull;</strong> or <strong>&#8942;</strong> menu at the top or bottom of the screen.</li><li>Choose <strong>${isAndroid ? 'Open in browser' : 'Open in Safari'}</strong>.</li></ol>
+      <button type="button" class="btn btn-outline inapp-copy">Copy the ordering link</button>
+      <p class="inapp-note" role="status"></p>
+      ${dismissable ? '<button type="button" class="inapp-close" aria-label="Close">Not now</button>' : ''}
+    </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('.inapp-copy').addEventListener('click', async () => {
+      const note = dlg.querySelector('.inapp-note');
+      try { await navigator.clipboard.writeText(url); note.textContent = 'Link copied. Paste it in your browser.'; }
+      catch { const t = document.createElement('input'); t.value = url; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); note.textContent = 'Link copied. Paste it in your browser.'; } catch { note.textContent = url; } t.remove(); }
+    });
+    dlg.querySelector('.inapp-close')?.addEventListener('click', () => dlg.close());
+    if (!dismissable) dlg.addEventListener('cancel', (e) => e.preventDefault());     // the order page cannot be used here
+    dlg.showModal();
+  };
+
+  // any Order button or link: stop and explain
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || !/(^|\/)order(\.html)?(\?|#|$)/.test(a.getAttribute('href') || '') || a.classList.contains('inapp-go')) return;
+    e.preventDefault();
+    build(true);
+  }, true);
+
+  // landing straight on the order page: it cannot be used until the page is opened in the browser
+  if (onOrderPage) document.addEventListener('DOMContentLoaded', () => build(false));
+})();
