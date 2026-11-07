@@ -1107,3 +1107,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .inapp-go, .inapp-copy{ text-align:center; justify-content:center; }
 .inapp-note{ min-height:1.2em; font-size:13px; color:var(--wood,#7a5a2c); }
 .inapp-close{ background:none; border:0; font:inherit; font-size:14px; color:#6b6357; text-decoration:underline; cursor:pointer; padding:4px; align-self:center; }
+
+/* phone audit fixes: long unbroken words stay inside their card, and the small print is a little bigger */
+@media (max-width:640px){
+  .menu-item p, .dish p, .feature-card h3, .feature-card p, .room-card p{ overflow-wrap:anywhere; }
+  .room-card .chip{ font-size:12px; }
+  body.luxe .btn.btn-add, .btn-add{ font-size:12.5px; }
+}
