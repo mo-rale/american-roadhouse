@@ -133,20 +133,20 @@ const RES = {
   },
   options: {
     label: 'Sizes & flavors', noun: 'option', table: 'menu_options', select: '*, menu_items(name, category_id, categories(name, venue))', admin: false, order: ['option_type', 'sort_order', 'name'],
-    note: 'Dish-specific choices. Add sizes or flavors to the individual dish that offers them.',
+    note: 'Choices a customer picks for one dish, such as a size or a flavor. Each one shows the full price the customer pays for that choice.',
     columns: [
       ['Dish', (r) => esc(r.menu_items?.name || '—')],
       ['Type', (r) => esc(r.option_type === 'size' ? 'Size' : 'Flavor')],
       ['Option', (r) => esc(r.name)],
-      ['Price', (r) => `<span class="price">+${peso(r.price)}</span>`],
+      ['Price', (r) => optionPrice(r)],
     ],
     toggles: [{ key: 'is_active', label: 'Available' }],
     fields: [
-      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, options: () => S.menuItems.map((i) => [i.id, `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || ''} · ${i.name}`]), hint: 'This size or flavor is offered only for the selected dish.' },
+      { key: 'menu_item_id', label: 'Dish', type: 'select', required: true, groups: () => dishGroups(), hint: 'Dishes are grouped by menu section. This choice is offered only for the dish you pick.' },
       { key: 'option_type', label: 'Type', type: 'select', required: true, options: () => [['size', 'Size'], ['flavor', 'Flavor']] },
-      { key: 'name', label: 'Name customers see', type: 'text', required: true, max: 80 },
-      { key: 'price', label: 'Price (PHP)', type: 'money0', hint: 'For a Size or a Flavor, this price replaces the dish base price. For a Flavor, use 0 to keep the dish price.' },
-      { key: 'sort_order', label: 'Sort order', type: 'int', def: 0, hint: 'Lower numbers come first within the type.' },
+      { key: 'name', label: 'Name customers see', type: 'text', required: true, max: 80, hint: 'For example: Large, or IPA (Red).' },
+      { key: 'price', label: 'Full price for this choice (PHP)', type: 'money0', hint: 'The customer pays this price instead of the dish price. For a flavor that costs the same as the dish, enter 0.' },
+      { key: 'sort_order', label: 'Order in the list', type: 'int', def: 0, hint: 'Lower numbers come first.' },
       { key: 'is_active', label: 'Available to customers', type: 'checkbox', def: true },
     ],
   },
@@ -869,6 +869,42 @@ const menuSubtabs = (key) => (key === 'menu' || key === 'sections' || key === 'e
   ? `<div class="subtabs" role="tablist" aria-label="Menu">${MENU_SUB.map(([k, l]) => `<button type="button" role="tab" data-rsub="${k}" aria-selected="${k === key}">${l}</button>`).join('')}</div>`
   : '');
 
+// "Venue - Section" groups of dishes for the picker, so a long menu is easy to scan
+function dishGroups() {
+  const groups = new Map();
+  [...S.menuItems].sort((a, b) => a.name.localeCompare(b.name)).forEach((i) => {
+    const g = `${VENUE_LABEL[i.categories?.venue] || ''} · ${i.categories?.name || 'Other'}`;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push([i.id, i.name]);
+  });
+  return [...groups].sort((a, b) => a[0].localeCompare(b[0]));
+}
+// what the customer pays for this choice; a flavor at 0 simply keeps the dish price
+function optionPrice(r) {
+  if (r.option_type === 'flavor' && Number(r.price) === 0) return '<span class="muted">Same as dish price</span>';
+  return `<span class="price">${peso(r.price)}</span>`;
+}
+// Sizes & flavors: one card per dish with its choices listed inside (instead of one long table)
+function renderOptionGroups(rows, canWrite) {
+  const byDish = new Map();
+  rows.forEach((r) => { const k = r.menu_item_id; if (!byDish.has(k)) byDish.set(k, { dish: r.menu_items, id: k, list: [] }); byDish.get(k).list.push(r); });
+  const groups = [...byDish.values()].sort((a, b) => (a.dish?.name || '').localeCompare(b.dish?.name || ''));
+  const open = groups.length <= 8 || Boolean(S.rq);
+  const where = (d) => `${VENUE_LABEL[d?.categories?.venue] || ''} · ${d?.categories?.name || ''}`;
+  const count = (list) => { const sz = list.filter((x) => x.option_type === 'size').length, fl = list.length - sz; return [sz ? `${sz} size${sz > 1 ? 's' : ''}` : '', fl ? `${fl} flavor${fl > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · '); };
+  return `<p class="count-line">${rows.length} choice${rows.length === 1 ? '' : 's'} on ${groups.length} dish${groups.length === 1 ? '' : 'es'}</p>
+    <div class="opt-groups">${groups.map((g) => `<details class="opt-group" ${open ? 'open' : ''}>
+      <summary><span class="opt-dish"><strong>${esc(g.dish?.name || 'Unknown dish')}</strong><small>${esc(where(g.dish))}</small></span>
+        <span class="opt-count">${esc(count(g.list))}</span></summary>
+      <ul class="opt-list">${g.list.map((r) => `<li class="${r.is_active ? '' : 'is-off'}">
+        <span class="badge ${r.option_type === 'size' ? '' : 'alt'}">${r.option_type === 'size' ? 'Size' : 'Flavor'}</span>
+        <span class="opt-name">${esc(r.name)}</span><span class="opt-price">${optionPrice(r)}</span>
+        <label class="switch"><input type="checkbox" data-toggle="is_active" data-id="${esc(r.id)}" ${r.is_active ? 'checked' : ''} ${canWrite ? '' : 'disabled'} aria-label="Available: ${esc(r.name)}"><span></span></label>
+        ${canWrite ? `<span class="row-actions"><button type="button" class="btn-xs" data-edit="${esc(r.id)}">Edit</button><button type="button" class="btn-xs danger" data-delete="${esc(r.id)}">Delete</button></span>` : ''}</li>`).join('')}</ul>
+      ${canWrite ? `<div class="opt-add"><button type="button" class="btn-xs" data-addopt="${esc(g.id)}">+ Add a size or flavor to ${esc(g.dish?.name || 'this dish')}</button></div>` : ''}
+    </details>`).join('')}</div>`;
+}
+
 function renderResource(key) {
   const cfg = RES[key];
   const canWrite = !cfg.admin || isAdmin();
@@ -876,10 +912,11 @@ function renderResource(key) {
     $('st-panel').innerHTML = `${menuSubtabs(key)}<div class="st-toolbar"><h2 style="font-size:22px;">${esc(cfg.label)}</h2>
       <div class="tool-right">
         <input type="search" id="r-search" class="st-search" placeholder="Search ${esc(cfg.label.toLowerCase())}" aria-label="Search ${esc(cfg.label)}" value="${esc(S.rq || '')}">
-        ${key === 'menu' || key === 'options' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
+        ${key === 'options' ? `<select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
+        ${key === 'menu' ? `<select id="r-venue" class="st-select" aria-label="Filter by venue"><option value="">All venues</option><option value="main">Main</option><option value="roofdeck">Roof Deck</option></select>
           <select id="r-cat" class="st-select" aria-label="Filter by section"><option value="">All sections</option>${S.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(VENUE_LABEL[c.venue] || '')})</option>`).join('')}</select>` : ''}
         ${key === 'menu' ? `<select id="r-stock" class="st-select" aria-label="Filter by stock"><option value="">Any stock</option><option value="low">Low or out</option><option value="untracked">Not tracked</option></select>` : ''}
-        ${key === 'extras' || key === 'options' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
+        ${key === 'extras' ? `<select id="r-active" class="st-select" aria-label="Filter by availability"><option value="">Any status</option><option value="on">Available</option><option value="off">Hidden</option></select>
           <select id="r-xprice" class="st-select" aria-label="Filter by price"><option value="">Any price</option><option value="paid">Paid</option><option value="free">Free</option></select>` : ''}
         ${canWrite ? `<button type="button" class="btn btn-primary btn-sm" data-new="1">Add ${esc(cfg.noun)}</button>`
           : '<span class="badge">View only. Administrators manage this.</span>'}</div></div>
@@ -901,6 +938,7 @@ function renderResource(key) {
     body.innerHTML = '<div class="empty"><strong>No matches</strong>Try a different search or category.</div>';
     return;
   }
+  if (key === 'options') { body.innerHTML = renderOptionGroups(rows, canWrite); return; }
   const heads = [...cfg.columns.map((c) => c[0]), ...cfg.toggles.map((t) => t.label)];
   const td = (h, html, cls = '') => `<td data-label="${esc(h)}" class="${cls}">${html}</td>`;
   const lowN = key === 'menu' ? currentRows.filter(isLowStock).length : 0;
@@ -948,7 +986,11 @@ function fieldHtml(f, row) {
   if (f.type === 'checkbox') return `<div class="${cls} check-field"><input type="checkbox" id="${id}" name="${f.key}" ${v ? 'checked' : ''}><label for="${id}" style="margin:0;">${esc(f.label)}</label></div>`;
   let input;
   if (f.type === 'textarea') input = `<textarea id="${id}" name="${f.key}" rows="3" maxlength="${f.max || 500}">${esc(v ?? '')}</textarea>`;
-  else if (f.type === 'select') input = `<select id="${id}" name="${f.key}"><option value="">Select…</option>${f.options().map(([val, lab]) => `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
+  else if (f.type === 'select') {
+    const opt = ([val, lab]) => `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(lab)}</option>`;
+    const list = f.groups ? f.groups().map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(opt).join('')}</optgroup>`).join('') : f.options().map(opt).join('');
+    input = `<select id="${id}" name="${f.key}"><option value="">Select…</option>${list}</select>`;
+  }
   else if (f.type === 'date') input = `<input type="date" id="${id}" name="${f.key}" value="${esc(v ?? '')}">`;
   else if (f.type === 'datetime') input = `<input type="datetime-local" id="${id}" name="${f.key}" value="${esc(toLocalInput(v))}">`;
   else if (f.type === 'stockopt') input = `<input type="text" inputmode="numeric" id="${id}" name="${f.key}" value="${esc(v ?? '')}" placeholder="Not tracked" autocomplete="off">`;
@@ -960,12 +1002,17 @@ function fieldHtml(f, row) {
 
 let editing = null; // { key, row|null }
 
-function openDialog(key, row) {
+function openDialog(key, row, preset = null) {
   const cfg = RES[key];
   editing = { key, row };
   S.pendingImg = {};
-  $('dlg-form').innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${esc(cfg.noun)}</h3>
-    <div class="grid-fields">${cfg.fields.map((f) => fieldHtml(f, row)).join('')}</div>
+  const base = row || preset;
+  const lockedDish = key === 'options' && !row && preset?.menu_item_id ? S.menuItems.find((i) => i.id === preset.menu_item_id) : null;
+  const title = lockedDish ? `Add a size or flavor to ${lockedDish.name}` : `${row ? 'Edit' : 'Add'} ${cfg.noun}`;
+  $('dlg-form').innerHTML = `<h3>${esc(title)}</h3>
+    <div class="grid-fields">${cfg.fields.map((f) => (lockedDish && f.key === 'menu_item_id'
+      ? `<input type="hidden" id="fld-menu_item_id" name="menu_item_id" value="${esc(lockedDish.id)}">`
+      : fieldHtml(f, base))).join('')}</div>
     <div class="form-error" id="dlg-error" role="alert" style="margin-top:14px;"></div>
     <div class="dialog-actions"><button type="button" class="btn btn-outline btn-sm" id="dlg-cancel">Cancel</button>
       <button type="submit" class="btn btn-primary btn-sm" id="dlg-save">Save</button></div>`;
@@ -1629,6 +1676,7 @@ function init() {
       if (S.sound) beep(S.tab === 'inquiries' ? 'inquiry' : 'order');
       if (S.tab === 'inquiries') renderInquiries(); else renderOrders();
     }
+    else if (t.dataset.addopt) openDialog('options', null, { menu_item_id: t.dataset.addopt, option_type: 'flavor' });
     else if (t.dataset.new) openDialog(S.tab, null);
     else if (t.dataset.edit) openDialog(S.tab, currentRows.find((r) => r.id === t.dataset.edit));
     else if (t.dataset.delete) deleteRow(S.tab, t.dataset.delete);
