@@ -1060,7 +1060,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .hero{ min-height:86svh; background-position:56% 22% !important; }
   .hero-content{ padding-top:104px; padding-bottom:96px; }
   .hero h1{ font-size:34px; line-height:1.12; margin-bottom:12px; }
-  .hero p.lede{ font-size:15.5px; margin-bottom:22px; }
+  .hero p.lede{ font-size:13.5px; line-height:1.55; margin-bottom:20px; }
   .hero-eyebrow{ margin-bottom:12px; font-size:11px; letter-spacing:.1em; gap:8px; }
   .hero-eyebrow::before{ width:20px; flex:0 0 20px; }
   .h1-name{ font-size:12px; letter-spacing:.14em; margin-bottom:10px; }
