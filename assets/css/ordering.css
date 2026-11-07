@@ -527,3 +527,14 @@ mark.hit{ background:#f3dfae; color:inherit; border-radius:3px; padding:0 1px; }
 .opt-list .row-actions{ display:flex; gap:6px; }
 .badge.alt{ background:#efe7d8; color:#6b5230; }
 .opt-add{ padding:10px 16px 14px; border-top:1px solid var(--line-soft); background:#fbf9f4; }
+
+/* Drag to reorder */
+.tbl .drag-cell{ width:34px; padding-right:0; }
+.drag-handle{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:36px; font-size:20px; line-height:1; color:#8a8378; cursor:grab; border-radius:6px; touch-action:none; user-select:none; }
+.drag-handle:hover{ background:var(--linen); color:var(--wood); }
+.tbl tr.dragging{ background:var(--linen); box-shadow:0 6px 18px rgba(0,0,0,.18); position:relative; z-index:2; }
+.tbl tr.dragging .drag-handle{ cursor:grabbing; }
+@media (max-width:700px){
+  .tbl.resp td.drag-cell{ display:block; width:auto; text-align:left; padding:0; }
+  .tbl.resp td.drag-cell::before{ display:none; }
+}

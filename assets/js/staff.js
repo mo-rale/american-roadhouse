@@ -152,19 +152,18 @@ const RES = {
   },
   gallery: {
     label: 'Gallery', noun: 'photo', table: 'gallery_photos', select: '*', admin: false, order: ['sort_order', 'created_at'],
-    note: 'The photos on the website Gallery page, in this order. Add a photo with a caption and a category, hide one you do not want shown for now, or delete it.',
+    note: 'The photos on the website Gallery page, in this order. Grab the ⠿ handle and drag a photo up or down to change its place. New photos go to the end.',
     columns: [
       ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
       ['Caption', (r) => esc(r.caption || '—')],
       ['Category', (r) => esc({ rooms: 'Rooms', hotel: 'Hotel', restaurant: 'Restaurant', food: 'Food' }[r.category] || r.category)],
-      ['Order', (r) => String(r.sort_order)],
     ],
     toggles: [{ key: 'is_visible', label: 'Shown' }],
+    sortable: true,
     fields: [
       { key: 'image_url', label: 'Photo', type: 'image', span2: true },
       { key: 'caption', label: 'Caption', type: 'text', required: true, max: 140, span2: true, hint: 'A short description of the photo. It is also read aloud to blind visitors and helps Google understand the photo.' },
       { key: 'category', label: 'Category', type: 'select', required: true, options: () => [['rooms', 'Rooms'], ['hotel', 'Hotel'], ['restaurant', 'Restaurant'], ['food', 'Food']], hint: 'Which filter button on the Gallery page shows this photo.' },
-      { key: 'sort_order', label: 'Position', type: 'int', def: 0, hint: 'Lower numbers come first. Leave 0 for a new photo and it goes to the end.' },
       { key: 'is_visible', label: 'Show on the website', type: 'checkbox', def: true },
     ],
     validate: (p) => (p.image_url ? {} : { image_url: 'Please choose a photo.' }),
@@ -959,12 +958,13 @@ function renderResource(key) {
     return;
   }
   if (key === 'options') { body.innerHTML = renderOptionGroups(rows, canWrite); return; }
+  const drag = Boolean(cfg.sortable && canWrite && !q);
   const heads = [...cfg.columns.map((c) => c[0]), ...cfg.toggles.map((t) => t.label)];
   const td = (h, html, cls = '') => `<td data-label="${esc(h)}" class="${cls}">${html}</td>`;
   const lowN = key === 'menu' ? currentRows.filter(isLowStock).length : 0;
   body.innerHTML = `<p class="count-line">Showing ${rows.length} of ${currentRows.length}${lowN ? ` · ${lowN} low or out of stock` : ''}</p>
-    <div class="tbl-wrap"><table class="tbl resp"><thead><tr>${heads.map((h) => `<th>${esc(h)}</th>`).join('')}${canWrite ? '<th></th>' : ''}</tr></thead><tbody>
-    ${rows.map((r) => `<tr>${cfg.columns.map(([h, f]) => {
+    <div class="tbl-wrap"><table class="tbl resp"><thead><tr>${drag ? '<th></th>' : ''}${heads.map((h) => `<th>${esc(h)}</th>`).join('')}${canWrite ? '<th></th>' : ''}</tr></thead><tbody>
+    ${rows.map((r) => `<tr data-id="${esc(r.id)}">${drag ? '<td class="drag-cell"><span class="drag-handle" data-drag="1" title="Drag to change the order" aria-label="Drag to change the order">⠿</span></td>' : ''}${cfg.columns.map(([h, f]) => {
       let html = f(r);
       if (canWrite && html.includes('data-pricecell')) {
         html = `<button type="button" class="qprice" data-quickprice="${esc(r.id)}" aria-label="Edit price of ${esc(r.name)}">${html}</button>`;
@@ -975,7 +975,43 @@ function renderResource(key) {
       return td(h, html, h === '' ? 'img-cell' : '');
     }).join('')}${cfg.toggles.map((t) => td(t.label, `<label class="switch"><input type="checkbox" data-toggle="${t.key}" data-id="${esc(r.id)}" ${r[t.key] ? 'checked' : ''} ${canWrite ? '' : 'disabled'} aria-label="${esc(t.label)}: ${esc(r.name || r.code)}"><span></span></label>`)).join('')}
     ${canWrite ? `<td class="actions-cell"><div class="row-actions"><button type="button" class="btn-xs" data-edit="${esc(r.id)}">Edit</button><button type="button" class="btn-xs danger" data-delete="${esc(r.id)}">Delete</button></div></td>` : ''}</tr>`).join('')}
-    </tbody></table></div>`;
+    </tbody></table></div>${cfg.sortable && canWrite && q ? '<p class="count-line" style="text-transform:none;letter-spacing:0">Clear the search to drag photos into a new order.</p>' : ''}`;
+}
+
+// Drag a row by its handle to change the order (pointer events, so it works with a finger as well as a mouse)
+function startRowDrag(e) {
+  const handle = e.target.closest('[data-drag]');
+  if (!handle || e.button > 0) return;
+  const tr = handle.closest('tr'), tbody = tr.parentElement;
+  e.preventDefault();
+  handle.setPointerCapture(e.pointerId);
+  tr.classList.add('dragging');
+  const move = (ev) => {
+    const others = [...tbody.children].filter((x) => x !== tr);
+    const after = others.find((r) => { const b = r.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
+    if (after) { if (tr.nextElementSibling !== after) tbody.insertBefore(tr, after); }
+    else if (tbody.lastElementChild !== tr) tbody.appendChild(tr);
+    if (ev.clientY < 70) window.scrollBy(0, -14); else if (ev.clientY > window.innerHeight - 70) window.scrollBy(0, 14);
+  };
+  const up = () => {
+    handle.removeEventListener('pointermove', move);
+    handle.removeEventListener('pointerup', up);
+    handle.removeEventListener('pointercancel', up);
+    tr.classList.remove('dragging');
+    saveRowOrder(S.tab, [...tbody.querySelectorAll('tr')].map((x) => x.dataset.id));
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', up);
+  handle.addEventListener('pointercancel', up);
+}
+async function saveRowOrder(key, ids) {
+  const cfg = RES[key];
+  const changed = ids.map((id, i) => ({ id, pos: (i + 1) * 10 })).filter((x) => currentRows.find((r) => r.id === x.id)?.sort_order !== x.pos);
+  if (!changed.length) return;
+  const results = await Promise.all(changed.map((x) => supabase.from(cfg.table).update({ sort_order: x.pos }).eq('id', x.id)));
+  const failed = results.find((r) => r.error);
+  if (failed) toast(friendlyError(failed.error), 'error'); else toast('Order saved. The website shows it right away.');
+  loadResource(key);
 }
 
 const toLocalInput = (iso) => {
@@ -1710,6 +1746,7 @@ function init() {
     else if (t.dataset.route) showRoute(t.dataset.route);
     else if (t.dataset.staffToggle) setStaff(t.dataset.staffToggle, t.dataset.role, t.dataset.active !== 'true');
   });
+  $('st-panel').addEventListener('pointerdown', startRowDrag);
   $('st-panel').addEventListener('input', (e) => {
     if (e.target.id === 'd-lat') onDeliveryPaste(e.target);
     if (e.target.closest?.('#delivery-form') && S.del) {
