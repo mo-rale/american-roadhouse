@@ -37,7 +37,7 @@ async function init() {
 
   const [features, places, faqs, shots] = await Promise.all([
     list('home_features'),
-    list('home_places'),
+    list('home_places', (q) => q.limit(4)),
     list('home_faqs'),
     list('gallery_photos', (q) => q.eq('show_on_home', true).limit(8)),
   ]);

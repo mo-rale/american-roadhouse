@@ -237,7 +237,7 @@ const RES = {
   },
   places: {
     label: 'Places near me', noun: 'place', table: 'home_places', select: '*', admin: false, order: ['sort_order', 'created_at'],
-    note: 'The cards in the “Places Near Me” section of the home page, in this order. Grab the ⠿ handle and drag a place to change its place in the list.',
+    note: 'The cards in the “Places Near Me” section of the home page (up to 4), in this order. Grab the ⠿ handle and drag a place to change its place in the list.',
     columns: [
       ['', (r) => `<img src="${esc(safeImg(r.image_url))}" alt="">`],
       ['Place', (r) => esc(r.name || '—')],
@@ -245,7 +245,7 @@ const RES = {
       ['Note', (r) => esc(r.note || '—')],
     ],
     toggles: [{ key: 'is_visible', label: 'Shown' }],
-    sortable: true,
+    sortable: true, max: 4,
     fields: [
       { key: 'image_url', label: 'Photo', type: 'image', span2: true },
       { key: 'name', label: 'Name of the place', type: 'text', required: true, max: 80, span2: true },
