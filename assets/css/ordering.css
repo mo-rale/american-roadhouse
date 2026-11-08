@@ -459,7 +459,8 @@ dialog.st-dialog::backdrop{ background:rgba(20,17,14,.55); }
 .cf-total .price{ font-size:22px; }
 .cf-where{ margin:10px 0 0; font-size:13.5px; color:#6b6357; line-height:1.5; }
 .cf-actions{ display:flex; gap:10px; margin-top:18px; }
-.cf-actions .btn{ flex:1; justify-content:center; }
+.cf-actions .btn{ flex:1 1 0; min-width:0; justify-content:center; text-align:center; white-space:normal; padding-left:14px; padding-right:14px; }
+@media (max-width:480px){ .cf-actions{ flex-direction:column-reverse; } .cf-actions .btn{ flex:none; width:100%; } }
 .o-extra{ display:block; margin-top:2px; font-size:12.5px; font-weight:600; color:#8B6A3E; line-height:1.35; }
 
 /* extras (paid add-ons) */
