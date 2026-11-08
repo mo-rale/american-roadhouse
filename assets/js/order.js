@@ -614,6 +614,7 @@ function clearProfile() {
 
 function updatePlaceBtn() {
   syncOptional();
+  setTimeout(updateScrollHint, 0);
   const btn = $('place-btn'), msg = $('range-msg');
   if (!btn || state.placing) return;
   const blocked = outOfRange();
@@ -1083,7 +1084,9 @@ function closeCart() { $('cart').classList.remove('open'); document.body.style.o
 function updateScrollHint() {
   const c = $('cart'), h = $('scroll-hint');
   if (!c || !h) return;
-  h.hidden = !(c.classList.contains('open') && c.scrollHeight - c.clientHeight > 120);
+  // only while there is still something to fill in: once the details are complete the hint stays away
+  const incomplete = Boolean($('checkout')) && missingFields().length > 0;
+  h.hidden = !(c.classList.contains('open') && incomplete && c.scrollHeight - c.clientHeight > 120);
   h.classList.toggle('away', c.scrollTop >= 40);
 }
 
