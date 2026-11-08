@@ -132,19 +132,18 @@
               <label><input type="radio" name="order_type" value="dine_in"><span>Dine in</span></label>
               <label><input type="radio" name="order_type" value="room_delivery"><span>To my room</span></label>
             </div>
+            <div class="field" id="pin-field" style="margin-top:14px;">
+              <label>DELIVERY LOCATION</label>
+              <button type="button" class="loc-card" id="pin-gps"></button>
+              <div class="pin-status" id="pin-status" aria-live="polite"></div>
+              <div class="err">Please set your delivery location.</div>
+            </div>
             <div class="field" id="address-field" style="margin-top:14px;">
-              <label for="f-address">DELIVERY ADDRESS</label>
-              <textarea id="f-address" name="delivery_address" rows="2" maxlength="300" autocomplete="street-address" placeholder="House number, street, barangay, landmark"></textarea>
+              <label for="f-address">ADDRESS (HOUSE NUMBER, LANDMARK)</label>
+              <textarea id="f-address" name="delivery_address" rows="2" maxlength="300" autocomplete="street-address" placeholder="Filled in from your location. Add a house number or a landmark."></textarea>
+              <button type="button" class="link-btn addr-find" id="addr-find" hidden>Show this address on the map</button>
               <p id="addr-hint" class="addr-hint" hidden></p>
               <div class="err">Please enter your delivery address.</div>
-            </div>
-            <div class="field" id="pin-field" style="margin-top:14px;">
-              <label>PIN YOUR LOCATION</label>
-              <p class="pin-help">The delivery fee is based on the distance from the restaurant.</p>
-              <button type="button" class="btn btn-outline btn-sm" id="pin-gps">Use my current location</button>
-              <div id="pin-map" class="pin-map" role="application" aria-label="Map: tap or drag the pin to your delivery location"></div>
-              <div class="pin-status" id="pin-status" aria-live="polite">Tap the map or drag the pin to where we should deliver.</div>
-              <div class="err">Please pin your location on the map.</div>
             </div>
             <div class="field" id="room-field" hidden style="margin-top:14px;">
               <label for="f-room">ROOM NUMBER</label>
@@ -160,22 +159,25 @@
 
           <fieldset>
             <legend id="details-legend">YOUR DETAILS</legend>
+            <p id="saved-note" class="saved-note" hidden>Welcome back! We filled in your details from your last order. <button type="button" id="saved-clear">Not you? Clear</button></p>
             <div class="field" data-edit-hide>
               <label for="f-name">FULL NAME</label>
-              <input type="text" id="f-name" name="name" maxlength="80" autocomplete="name" required>
+              <input type="text" id="f-name" name="name" maxlength="80" autocomplete="name" enterkeyhint="next" required>
               <div class="err">Please enter your name (at least 2 characters).</div>
             </div>
             <div class="field" data-edit-hide>
               <label for="f-phone">PHONE NUMBER</label>
-              <input type="tel" id="f-phone" name="phone" inputmode="tel" maxlength="20" autocomplete="tel" required>
+              <input type="tel" id="f-phone" name="phone" inputmode="tel" maxlength="20" autocomplete="tel" enterkeyhint="done" placeholder="09XX XXX XXXX" required>
               <div class="err">Please enter a valid phone number (7&ndash;20 digits).</div>
             </div>
-            <div class="field" data-edit-hide>
+            <button type="button" class="opt-link" data-show="email-field">+ Add an email (optional)</button>
+            <div class="field" id="email-field" data-edit-hide hidden>
               <label for="f-email">EMAIL (OPTIONAL)</label>
               <input type="email" id="f-email" name="email" maxlength="120" autocomplete="email">
               <div class="err">Please enter a valid email address.</div>
             </div>
-            <div class="field">
+            <button type="button" class="opt-link" data-show="notes-field">+ Add a note for the kitchen (optional)</button>
+            <div class="field" id="notes-field" hidden>
               <label for="f-notes">NOTES FOR THE KITCHEN (OPTIONAL)</label>
               <textarea id="f-notes" name="notes" rows="2" maxlength="500"></textarea>
             </div>
@@ -193,6 +195,22 @@
       </aside>
     </div>
 
+
+  <div id="pin-modal" class="pin-modal" hidden role="dialog" aria-modal="true" aria-label="Set your delivery location">
+    <div class="pm-top"><strong>Set your delivery location</strong><button type="button" id="pm-close" aria-label="Close the map">&times;</button></div>
+    <form class="pm-search" id="pm-search" role="search"><input type="search" id="pm-q" placeholder="Search your street, barangay or a landmark" autocomplete="off" enterkeyhint="search"><button type="submit" class="btn btn-outline btn-sm">Search</button></form>
+    <div class="pm-mapwrap">
+      <div id="pin-map" class="pin-map"></div>
+      <div class="pm-pin" aria-hidden="true"><svg width="46" height="60" viewBox="0 0 46 60"><path d="M23 58 C23 58 4 36 4 22 A19 19 0 0 1 42 22 C42 36 23 58 23 58Z" fill="#B8322A" stroke="#fff" stroke-width="3"/><circle cx="23" cy="22" r="7.5" fill="#fff"/></svg></div>
+      <button type="button" class="pm-gps" id="pm-gps">Use my current location</button>
+      <div class="pm-hint" aria-hidden="true">Move the map so the pin is on your door</div>
+    </div>
+    <div class="pm-sheet">
+      <p class="pm-addr" id="pm-addr">Finding the address…</p>
+      <p class="pm-fee" id="pm-fee"></p>
+      <button type="button" class="btn btn-primary btn-block" id="pm-confirm" disabled>Confirm this location</button>
+    </div>
+  </div>
     <button type="button" class="cart-fab" id="cart-fab" hidden aria-controls="cart">
       <span id="fab-count">View order</span><span class="price" id="fab-total"></span>
     </button>

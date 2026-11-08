@@ -265,11 +265,7 @@ async function loadDeliveryCfg() {
 const pinMap = { map: null, marker: null, loading: null, limit: null };
 // The map may be created while hidden (mobile drawer) or before the layout settles, so re-measure and show the whole delivery area.
 function refitPinMap() {
-  const go = () => {
-    if (!pinMap.map) return;
-    pinMap.map.invalidateSize();
-    if (pinMap.limit) pinMap.map.fitBounds(pinMap.limit.getBounds(), { padding: [26, 26] });
-  };
+  const go = () => { if (pinMap.map && !$('pin-modal').hidden) pinMap.map.invalidateSize(); };
   setTimeout(go, 60); setTimeout(go, 400);
 }
 // Turn the pin into a street address (OpenStreetMap's free lookup) and put it in the address box.
@@ -323,7 +319,7 @@ function setPin(lat, lng) {
   const st = $('pin-status');
   if (!cfgReady()) {
     state.pin = { lat, lng, km: null, fee: 0 }; state.far = null;
-    st.textContent = 'Location pinned. Our team will confirm the delivery fee.'; st.className = 'pin-status ok';
+    st.textContent = ''; st.className = 'pin-status ok';
   } else {
     const km = distanceKm(lat, lng), max = Number(state.cfg.max_km);
     if (km > max) {
@@ -331,10 +327,12 @@ function setPin(lat, lng) {
       st.textContent = `That is about ${km.toFixed(1)} km away. We deliver up to ${max} km.`; st.className = 'pin-status bad';
     } else {
       state.pin = { lat, lng, km, fee: feeForKm(km) }; state.far = null;
-      st.textContent = `About ${km.toFixed(1)} km from us. Delivery fee ${peso(state.pin.fee)}.`; st.className = 'pin-status ok';
+      st.textContent = ''; st.className = 'pin-status ok';
     }
   }
   $('pin-field').classList.remove('invalid');
+  renderPinCard();
+  syncAddrFind();
   renderCart();
 }
 
@@ -353,12 +351,12 @@ function loadLeaflet() {
   return pinMap.loading;
 }
 async function initPinMap() {
-  if (pinMap.map) { refitPinMap(); return; }
-  try { await loadLeaflet(); } catch { pinMap.loading = null; $('pin-status').textContent = 'The map could not load. Try "Use my current location".'; return; }
-  if (pinMap.map) return;
+  if (pinMap.map) { refitPinMap(); return true; }
+  try { await loadLeaflet(); } catch { pinMap.loading = null; $('pm-addr').textContent = 'The map could not load. Check your connection, or call 0915 875 4860.'; return false; }
+  if (pinMap.map) return true;
   const L = window.L;
   const start = cfgReady() ? [Number(state.cfg.store_lat), Number(state.cfg.store_lng)] : [9.8, 124.55];
-  const map = L.map('pin-map', { scrollWheelZoom: false }).setView(start, cfgReady() ? 14 : 12);
+  const map = L.map('pin-map', { scrollWheelZoom: true }).setView(start, cfgReady() ? 14 : 12);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
   if (cfgReady()) {
     // the delivery area: straight-line radius = distance limit / road factor (the same maths the fee uses)
@@ -379,13 +377,85 @@ async function initPinMap() {
     };
     key.addTo(map);
   }
-  const marker = L.marker(start, { draggable: true, opacity: 0 }).addTo(map);
-  pinMap.map = map; pinMap.marker = marker;
-  const place = (ll) => { marker.setLatLng(ll); marker.setOpacity(1); setPin(ll.lat, ll.lng); };
-  map.on('click', (e) => place(e.latlng));
-  marker.on('dragend', () => place(marker.getLatLng()));
-  if (state.pin) { marker.setLatLng([state.pin.lat, state.pin.lng]); marker.setOpacity(1); }
+  pinMap.map = map;
+  map.on('moveend', previewCenter);
+  ['pointerdown', 'wheel'].forEach((t) => map.getContainer().addEventListener(t, () => { pinMap.moved = true; setTimeout(previewCenter, 50); }, { passive: true }));   // the customer touched the map
   refitPinMap();
+  return true;
+}
+
+// ---- the full-screen "set my location" map: the pin stays in the middle, the customer moves the map under it
+const PIN_ICON = '<svg width="26" height="34" viewBox="0 0 46 60" aria-hidden="true"><path d="M23 58 C23 58 4 36 4 22 A19 19 0 0 1 42 22 C42 36 23 58 23 58Z" fill="currentColor"/><circle cx="23" cy="22" r="7.5" fill="#fff"/></svg>';
+function renderPinCard() {
+  const b = $('pin-gps');
+  if (!b) return;
+  let main, sub, cls = '';
+  if (state.pin) { main = 'Delivery location set'; sub = (state.pin.km != null ? `About ${state.pin.km.toFixed(1)} km · delivery fee ${peso(state.pin.fee)} · ` : '') + 'tap to change'; cls = 'set'; }
+  else if (state.far != null) { main = 'That is too far for delivery'; sub = `About ${state.far.toFixed(1)} km away. Tap to choose another place.`; cls = 'bad'; }
+  else { main = 'Set my delivery location'; sub = 'Use your GPS, or move the map to your door'; }
+  b.className = `loc-card ${cls}`;
+  b.innerHTML = `<span class="lc-ic">${PIN_ICON}</span><span class="lc-t"><strong>${main}</strong><small>${sub}</small></span><span class="lc-go" aria-hidden="true">&rsaquo;</span>`;
+}
+let pmAddrTimer = null, pmAddrAbort = null;
+function previewCenter() {
+  if (!pinMap.map || $('pin-modal').hidden) return;
+  const c = pinMap.map.getCenter(), conf = $('pm-confirm'), fee = $('pm-fee');
+  if (cfgReady()) {
+    const km = distanceKm(c.lat, c.lng), max = Number(state.cfg.max_km);
+    if (km > max) { fee.textContent = `About ${km.toFixed(1)} km away. We deliver up to ${max} km.`; fee.className = 'pm-fee bad'; conf.disabled = true; }
+    else { fee.textContent = `About ${km.toFixed(1)} km from us · delivery fee ${peso(feeForKm(km))}`; fee.className = 'pm-fee ok'; conf.disabled = false; }
+  } else { fee.textContent = ''; conf.disabled = false; }
+  if (!state.pin && !pinMap.moved) { conf.disabled = true; fee.textContent = 'Move the map or use your current location first.'; fee.className = 'pm-fee'; }
+  $('pm-addr').textContent = 'Finding the address…';
+  clearTimeout(pmAddrTimer);
+  pmAddrTimer = setTimeout(async () => {
+    try {
+      pmAddrAbort?.abort(); pmAddrAbort = new AbortController();
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=en&lat=${c.lat}&lon=${c.lng}`, { signal: pmAddrAbort.signal, headers: { Accept: 'application/json' } });
+      $('pm-addr').textContent = r.ok ? (addressFromOsm(await r.json()) || 'Pinned location') : 'Pinned location';
+    } catch { /* aborted by the next move, or offline */ }
+  }, 600);
+}
+// type an address, find it on the map: moves the map there (OpenStreetMap search, around Candijay) and the customer confirms
+async function searchPlace(text) {
+  const out = $('pm-addr');
+  if (!pinMap.map || text.trim().length < 3) return;
+  out.textContent = 'Searching…';
+  try {
+    const c = cfgReady() ? [Number(state.cfg.store_lat), Number(state.cfg.store_lng)] : [9.8, 124.55];
+    const box = `${c[1] - 0.6},${c[0] + 0.6},${c[1] + 0.6},${c[0] - 0.6}`;
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ph&accept-language=en&viewbox=${box}&q=${encodeURIComponent(text.trim())}`, { headers: { Accept: 'application/json' } });
+    const j = r.ok ? await r.json() : [];
+    if (!j.length) { out.textContent = 'We could not find that place. Try the barangay or a nearby landmark, or move the map yourself.'; return; }
+    pinMap.moved = true;
+    pinMap.map.setView([Number(j[0].lat), Number(j[0].lon)], 17);
+  } catch { out.textContent = 'The search is not available right now. Move the map to your door instead.'; }
+}
+function syncAddrFind() {
+  const b = $('addr-find');
+  if (b) b.hidden = !(isDelivery() && !state.pin && $('f-address').value.trim().length >= 6);
+}
+async function openPinModal(opts = {}) {
+  const searchText = typeof opts.search === 'string' ? opts.search : '';
+  $('pin-modal').hidden = false; document.body.classList.add('pm-open');
+  $('pm-addr').textContent = 'Loading the map…'; $('pm-fee').textContent = ''; $('pm-confirm').disabled = true;
+  if (!(await initPinMap())) return;
+  const map = pinMap.map;
+  map.invalidateSize();
+  if (state.pin) map.setView([state.pin.lat, state.pin.lng], 17);
+  else if (cfgReady()) map.setView([Number(state.cfg.store_lat), Number(state.cfg.store_lng)], 14);
+  pinMap.moved = Boolean(state.pin);
+  previewCenter();
+  if (searchText) { $('pm-q').value = searchText; await searchPlace(searchText); return; }
+  if (!state.pin && !pinMap.gpsTried && navigator.geolocation) { pinMap.gpsTried = true; useMyLocation({ fromModal: true, auto: true }); }
+}
+function closePinModal() { $('pin-modal').hidden = true; document.body.classList.remove('pm-open'); }
+function confirmPin() {
+  if (!pinMap.map) return;
+  const c = pinMap.map.getCenter();
+  setPin(c.lat, c.lng);
+  closePinModal();
+  if (state.pin) setTimeout(() => $('f-address').scrollIntoView({ block: 'center', behavior: 'smooth' }), 200);
 }
 // A small distance label on the top edge of a circle.
 function edgeLabel(L, map, centre, radiusM, text, colour) {
@@ -399,25 +469,26 @@ function autoLocate() {
   autoTried = true;
   useMyLocation({ auto: true });
 }
-function useMyLocation({ auto = false } = {}) {
+function useMyLocation({ auto = false, fromModal = false } = {}) {
   const st = $('pin-status');
-  if (!navigator.geolocation) { st.textContent = 'Your browser cannot share its location. Tap the map instead.'; st.className = 'pin-status bad'; return; }
-  st.textContent = 'Finding your location…'; st.className = 'pin-status';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    await initPinMap();
+  const say = (t, bad) => { if (fromModal) $('pm-addr').textContent = t; else { st.textContent = t; st.className = `pin-status${bad ? ' bad' : ''}`; } };
+  if (!navigator.geolocation) { say('Your phone would not share its location. Move the map to your door instead.', true); return; }
+  say('Finding your location…');
+  navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude: lat, longitude: lng } = pos.coords;
-    if (pinMap.marker) { pinMap.marker.setLatLng([lat, lng]); pinMap.marker.setOpacity(1); }
-    setPin(lat, lng);
+    if (fromModal && pinMap.map) { pinMap.moved = true; pinMap.map.setView([lat, lng], 17); }
+    else { st.textContent = ''; setPin(lat, lng); }
   }, () => {
-    st.textContent = auto ? 'Location is off. Tap the map to drop the pin where we should deliver.' : 'We could not get your location. Tap the map to drop the pin instead.';
-    st.className = auto ? 'pin-status' : 'pin-status bad';
+    say(auto ? (fromModal ? 'Location is off. Move the map so the pin is on your door.' : 'Location is off. Tap "Set my delivery location" and move the map to your door.') : 'We could not get your location. Move the map to your door instead.', !auto);
   }, { enableHighAccuracy: true, timeout: 12000 });
 }
 function syncDeliveryUi() {
   const on = isDelivery();
   $('address-field').hidden = !on;
   $('pin-field').hidden = !on;
-  if (on) initPinMap();
+  if (on) loadLeaflet().catch(() => {});
+  renderPinCard();
+  syncAddrFind();
   renderCart();
   if (on) autoLocate();
 }
@@ -494,12 +565,61 @@ function missingFields() {
 
 // Ordering is blocked while the pin is outside the delivery limit.
 const outOfRange = () => !state.edit && isDelivery() && cfgReady() && state.far != null;
+// optional fields (email, note) stay folded away until needed; they open by themselves when they hold text
+function syncOptional() {
+  [['email-field', 'f-email'], ['notes-field', 'f-notes']].forEach(([box, input]) => {
+    const b = $(box), i = $(input);
+    if (!b || !i) return;
+    if (i.value.trim()) b.hidden = false;
+    const link = document.querySelector(`.opt-link[data-show="${box}"]`);
+    if (link) link.hidden = !b.hidden;
+  });
+}
+
+// remember the customer's details on this phone so the next order needs no typing
+const PROFILE_KEY = 'ar_profile';
+const readProfile = () => { try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); return p && typeof p === 'object' ? p : null; } catch { return null; } };
+function saveProfile(form) {
+  try {
+    const old = readProfile() || {};
+    const type = form.order_type.value;
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({
+      name: form.name.value.trim(), phone: form.phone.value.trim(), email: form.email.value.trim(),
+      type: ['delivery', 'pickup', 'dine_in'].includes(type) ? type : (old.type || ''),
+      address: type === 'delivery' ? form.delivery_address.value.trim() : (old.address || ''),
+    }));
+  } catch { /* storage may be off */ }
+}
+function applyProfile() {
+  const p = readProfile(), form = $('checkout');
+  if (!p || !form || state.edit) return;
+  if (p.name && !form.name.value) form.name.value = p.name;
+  if (p.phone && !form.phone.value) form.phone.value = p.phone;
+  if (p.email && !form.email.value) form.email.value = p.email;
+  if (p.type) {
+    const r = form.querySelector(`input[name="order_type"][value="${p.type}"]`);
+    if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+  }
+  if (p.address && !form.delivery_address.value) { form.delivery_address.value = p.address; state.addrEdited = true; }
+  $('saved-note').hidden = !(p.name || p.phone);
+  syncOptional(); updatePlaceBtn();
+}
+function clearProfile() {
+  try { localStorage.removeItem(PROFILE_KEY); } catch { /* ignore */ }
+  const form = $('checkout');
+  ['name', 'phone', 'email'].forEach((k) => { form[k].value = ''; });
+  form.delivery_address.value = ''; state.addrEdited = false;
+  $('saved-note').hidden = true; updatePlaceBtn();
+}
+
 function updatePlaceBtn() {
+  syncOptional();
   const btn = $('place-btn'), msg = $('range-msg');
   if (!btn || state.placing) return;
   const blocked = outOfRange();
   const missing = blocked ? [] : missingFields();
-  btn.disabled = blocked || missing.length > 0;
+  btn.disabled = blocked;                          // stays tappable while details are missing: a tap takes the customer to the first empty field
+  btn.classList.toggle('incomplete', !blocked && missing.length > 0);
   btn.textContent = blocked ? 'Outside our delivery area' : state.edit ? 'Save changes' : 'Place Order';
   const hint = $('missing-msg');
   if (hint) {
@@ -602,7 +722,10 @@ function validateForm(form) {
     $(id).setAttribute('aria-invalid', String(!ok));
     if (!ok && !first) first = $(id);
   }
-  first?.focus();
+  if (first) {
+    first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    first.focus({ preventScroll: true });
+  }
   return !first;
 }
 
@@ -686,6 +809,7 @@ async function onSubmit(e) {
     }
     const { data, error } = await supabase.rpc('place_order', args);
     if (error) throw error;
+    saveProfile(form);
     state.cart.clear(); saveCart();
     renderCart();
     closeCart();
@@ -960,6 +1084,7 @@ function updateScrollHint() {
   const c = $('cart'), h = $('scroll-hint');
   if (!c || !h) return;
   h.hidden = !(c.classList.contains('open') && c.scrollHeight - c.clientHeight > 120);
+  h.classList.toggle('away', c.scrollTop >= 40);
 }
 
 /* ---------- init ---------- */
@@ -1006,7 +1131,13 @@ async function init() {
       syncDeliveryUi();
     }
   });
-  $('pin-gps').addEventListener('click', useMyLocation);
+  $('pin-gps').addEventListener('click', () => openPinModal());
+  $('pm-search').addEventListener('submit', (e) => { e.preventDefault(); searchPlace($('pm-q').value); });
+  $('f-address').addEventListener('input', syncAddrFind);
+  $('addr-find').addEventListener('click', () => openPinModal({ search: $('f-address').value }));
+  $('pm-close').addEventListener('click', closePinModal);
+  $('pm-confirm').addEventListener('click', confirmPin);
+  $('pm-gps').addEventListener('click', () => useMyLocation({ fromModal: true }));
   $('f-address').addEventListener('input', () => { state.addrEdited = $('f-address').value.trim() !== ''; showAddressHint(); });
   $('addr-hint').addEventListener('click', (e) => {
     if (!e.target.closest('#addr-use')) return;
@@ -1040,11 +1171,16 @@ async function init() {
   window.addEventListener('resize', updateScrollHint);
   $('scroll-hint').addEventListener('click', () => $('cart').scrollBy({ top: Math.round($('cart').clientHeight * .7), behavior: 'smooth' }));
   $('cart-close').addEventListener('click', closeCart);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCart(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('pin-modal').hidden) closePinModal(); else closeCart(); } });
 
   await loadDeliveryCfg();
   await loadCatalog();
   syncDeliveryUi();
+  applyProfile();
+  $('saved-clear').addEventListener('click', clearProfile);
+  document.querySelectorAll('.opt-link').forEach((b) => b.addEventListener('click', () => {
+    const box = $(b.dataset.show); box.hidden = false; b.hidden = true; box.querySelector('input, textarea')?.focus();
+  }));
 
   // Live price/menu updates: realtime, plus a refresh on focus and every minute as a safety net.
   const refresh = debounce(() => loadCatalog({ silent: true }), 400);
